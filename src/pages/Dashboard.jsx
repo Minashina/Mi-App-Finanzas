@@ -19,7 +19,11 @@ export default function Dashboard() {
   }, [transactions]);
 
   const totalRegularExpense = thisMonthTxs
-    .filter(tx => tx.type === 'expense' && !tx.isMSI)
+    .filter(tx => {
+        if (tx.type !== 'expense' || tx.isMSI) return false;
+        const acc = accounts.find(a => a.id === tx.accountId);
+        return acc && acc.type === 'credit';
+    })
     .reduce((acc, tx) => acc + tx.amount, 0);
 
   // 2. MSI Activos
