@@ -12,7 +12,8 @@ import MSIDebt from './pages/MSIDebt';
 import Login from './pages/Login';
 import History from './pages/History';
 import FixedExpenses from './pages/FixedExpenses';
-import { List, CalendarClock as ClockIcon } from 'lucide-react'; // Iconos extra
+import Savings from './pages/Savings';
+import { List, CalendarClock as ClockIcon, PiggyBank } from 'lucide-react'; // Iconos extra
 
 const SidebarItem = ({ to, icon: Icon, label }) => {
   const location = useLocation();
@@ -85,6 +86,7 @@ export default function App() {
           <SidebarItem to="/accounts" icon={CreditCard} label="Mis Tarjetas" />
           <SidebarItem to="/add" icon={PlusCircle} label="Registrar Gasto" />
           <SidebarItem to="/fixed-expenses" icon={ClockIcon} label="Gastos Fijos" />
+          <SidebarItem to="/savings" icon={PiggyBank} label="Ahorros" />
           <SidebarItem to="/history" icon={List} label="Historial" />
           <SidebarItem to="/msi-debt" icon={CalendarSync} label="Deuda Futura" />
         </nav>
@@ -111,6 +113,7 @@ export default function App() {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/add" element={<AddTransaction />} />
           <Route path="/fixed-expenses" element={<FixedExpenses />} />
+          <Route path="/savings" element={<Savings />} />
           <Route path="/history" element={<History />} />
           <Route path="/msi-debt" element={<MSIDebt />} />
         </Routes>

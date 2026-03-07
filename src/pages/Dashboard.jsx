@@ -2,13 +2,13 @@ import React, { useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { calculateMSIForMonth, calculateRemainingMSIDebt } from '../utils/msi';
 import { isSameMonth } from 'date-fns';
-import { LayoutDashboard, Wallet, Receipt, CalendarSync, Landmark, PieChart as PieIcon, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Wallet, Receipt, CalendarSync, Landmark, PieChart as PieIcon, CreditCard, PiggyBank, Clock3 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const COLORS = ['#8b5cf6', '#10b981', '#f43f5e', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6', '#8ebd4e'];
 
 export default function Dashboard() {
-  const { accounts, transactions, fixedExpenses } = useFinance();
+  const { accounts, transactions, fixedExpenses, savings } = useFinance();
   const currentMonthDate = new Date();
 
   // 1. Filtrar Transacciones del Mes
@@ -45,6 +45,14 @@ export default function Dashboard() {
     .reduce((sum, a) => sum + (a.balance || 0), 0);
 
   const realAvailableBalance = totalCashAndDebit - totalToPayThisMonth;
+
+  // KPI 5: Total Ahorrado
+  const totalSaved = savings.reduce((sum, s) => sum + s.savedAmount, 0);
+
+  // Widget: Últimos 3 (gastos)
+  const recentExpenses = useMemo(() => {
+    return transactions.filter(tx => tx.type === 'expense').slice(0, 3);
+  }, [transactions]);
 
   // 5. Status de Crédito & KPI 2 (Deuda Actual Total TC)
   const creditCards = accounts.filter(a => a.type === 'credit');
@@ -108,8 +116,8 @@ export default function Dashboard() {
           </h1>
       </div>
 
-      {/* 4 KPIs Financieros (Top Level) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* 5 KPIs Financieros (Top Level) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         
         {/* KPI: Saldo Disponible Real */}
         <div className="bg-gradient-to-br from-primary to-purple-800 p-6 rounded-3xl shadow-lg relative overflow-hidden text-white flex flex-col justify-between">
@@ -158,6 +166,18 @@ export default function Dashboard() {
             </div>
             <p className="text-xs text-text-muted mt-4 leading-tight">
                 Saldo total comprometido a meses sin intereses a futuro.
+            </p>
+        </div>
+
+        {/* KPI: Total Ahorrado */}
+        <div className="bg-surface p-6 rounded-3xl border border-white/5 shadow-lg relative overflow-hidden flex flex-col justify-between">
+            <div className="absolute right-4 top-4 opacity-5"><PiggyBank size={48} /></div>
+            <div>
+                <p className="text-text-muted mb-1 text-xs font-bold uppercase tracking-widest">Total Ahorrado</p>
+                <p className="text-3xl font-black text-success">${totalSaved.toLocaleString()}</p>
+            </div>
+            <p className="text-xs text-text-muted mt-4 leading-tight">
+                Capital total protegido en tus metas de ahorro.
             </p>
         </div>
 
@@ -228,45 +248,84 @@ export default function Dashboard() {
 
       </div>
 
-      <h2 className="text-2xl font-bold mb-6 flex items-center gap-3 pt-6">
-        <CreditCard className="text-primary" /> Uso de Crédito Real
-      </h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-6">
+        
+        {/* Ultimos Movimientos */}
+        <div>
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                <Clock3 className="text-primary" /> Últimos Movimientos
+            </h2>
+            <div className="bg-surface rounded-3xl border border-white/5 shadow-lg overflow-hidden flex flex-col">
+                {recentExpenses.length === 0 ? (
+                    <div className="flex-1 p-8 flex items-center justify-center text-text-muted text-sm">
+                        No hay movimientos recientes.
+                    </div>
+                ) : (
+                    <div className="divide-y divide-white/5">
+                        {recentExpenses.map((tx) => {
+                            const acc = accounts.find(a => a.id === tx.accountId);
+                            const d = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+                            return (
+                                <div key={tx.id} className="p-4 sm:p-5 flex justify-between items-center hover:bg-white/5 transition-colors">
+                                    <div className="flex flex-col">
+                                        <p className="font-bold text-lg leading-tight">{tx.category}</p>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-xs text-text-muted">{d.toLocaleDateString()}</span>
+                                            <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-md text-text-muted">{acc?.name || 'Tarjeta'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-black text-white text-xl">-${tx.amount.toLocaleString()}</p>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {creditUsage.map(cc => (
-          <div key={cc.id} className="bg-surface p-6 rounded-3xl border border-white/5 shadow-lg">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">{cc.name}</h3>
-              <span className="text-sm px-3 py-1 rounded-full bg-white/5 text-text-muted">
-                Día Corte: {cc.cutoffDay}
-              </span>
-            </div>
-            
-            <div className="mb-2 flex justify-between text-sm">
-              <span className="text-text-muted">Deuda Total Activa</span>
-              <span className="font-bold">${cc.totalDebt.toLocaleString()}</span>
-            </div>
-            
-            {/* Progress bar */}
-            <div className="w-full bg-black/40 rounded-full h-3 overflow-hidden mb-2 relative">
-              <div 
-                className={`h-full rounded-full transition-all duration-1000 ${cc.usagePercent > 80 ? 'bg-danger' : cc.usagePercent > 50 ? 'bg-yellow-500' : 'bg-success'}`}
-                style={{ width: `${Math.min(cc.usagePercent, 100)}%` }}
-              ></div>
-            </div>
+        {/* Uso de Crédito */}
+        <div>
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                <CreditCard className="text-primary" /> Uso de Crédito Real
+            </h2>
+            <div className="flex flex-col gap-4">
+                {creditUsage.map(cc => (
+                <div key={cc.id} className="bg-surface p-5 rounded-3xl border border-white/5 shadow-lg">
+                    <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold">{cc.name}</h3>
+                    <span className="text-xs px-2 py-1 rounded-full bg-white/5 text-text-muted">
+                        Corte: {cc.cutoffDay}
+                    </span>
+                    </div>
+                    
+                    <div className="mb-2 flex justify-between text-sm">
+                    <span className="text-text-muted font-medium">Deuda Total Activa</span>
+                    <span className="font-bold text-lg">${cc.totalDebt.toLocaleString()}</span>
+                    </div>
+                    
+                    <div className="w-full bg-black/40 rounded-full h-3 overflow-hidden mb-2 relative">
+                    <div 
+                        className={`h-full rounded-full transition-all duration-1000 ${cc.usagePercent > 80 ? 'bg-danger' : cc.usagePercent > 50 ? 'bg-yellow-500' : 'bg-success'}`}
+                        style={{ width: `${Math.min(cc.usagePercent, 100)}%` }}
+                    ></div>
+                    </div>
 
-            <div className="flex justify-between text-xs text-text-muted">
-              <span>0%</span>
-              <span>Límite: ${cc.creditLimit.toLocaleString()} ({cc.usagePercent.toFixed(1)}%)</span>
-            </div>
-          </div>
-        ))}
+                    <div className="flex justify-between text-xs text-text-muted font-medium">
+                    <span>0%</span>
+                    <span>Límite: ${cc.creditLimit.toLocaleString()} ({cc.usagePercent.toFixed(1)}%)</span>
+                    </div>
+                </div>
+                ))}
 
-        {creditCards.length === 0 && (
-          <div className="col-span-full p-8 text-center text-text-muted bg-surface rounded-3xl border border-dashed border-white/10">
-            No has agregado ninguna tarjeta de crédito.
-          </div>
-        )}
+                {creditCards.length === 0 && (
+                <div className="p-8 text-center text-text-muted bg-surface rounded-3xl border border-dashed border-white/10 text-sm">
+                    No has agregado tarjetas de crédito.
+                </div>
+                )}
+            </div>
+        </div>
       </div>
     </div>
   );

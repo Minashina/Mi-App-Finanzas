@@ -5,6 +5,7 @@ const ACCOUNTS_COL = 'accounts';
 const TRANSACTIONS_COL = 'transactions';
 const CATEGORIES_COL = 'categories';
 const FIXED_EXPENSES_COL = 'fixedExpenses'; // Nueva colección V3
+const SAVINGS_COL = 'savings'; // Nueva colección V4
 
 // Verifica si el usuario está autenticado antes de operar
 const getExpectedUid = () => {
@@ -163,4 +164,55 @@ export const getCustomCategories = async () => {
   );
   const snap = await getDocs(q);
   return snap.docs.map(doc => doc.data().name);
+};
+
+
+// ==========================================
+// SAVINGS (AHORROS) V4
+// ==========================================
+
+export const addSavingGoal = async (savingData) => {
+  const uid = getExpectedUid();
+  const payload = { ...savingData, uid, createdAt: new Date() };
+  const docRef = await addDoc(collection(db, SAVINGS_COL), payload);
+  return { id: docRef.id, ...payload };
+};
+
+export const getSavings = async () => {
+    if (!auth.currentUser) return [];
+    const q = query(
+        collection(db, SAVINGS_COL),
+        where("uid", "==", auth.currentUser.uid)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const addFundsToSaving = async (savingId, accountId, amount) => {
+    getExpectedUid(); // Check auth
+    
+    // 1. Restar fondos de la cuenta origen
+    const accountRef = doc(db, ACCOUNTS_COL, accountId);
+    await updateDoc(accountRef, {
+        balance: increment(-amount)
+    });
+
+    // 2. Sumar fondos a la meta de ahorro
+    const savingRef = doc(db, SAVINGS_COL, savingId);
+    await updateDoc(savingRef, {
+        savedAmount: increment(amount)
+    });
+
+    // 3. (Opcional) Guardar el movimiento en history para darle tracking al usuario
+    const txPayload = {
+        amount,
+        type: 'expense',
+        category: 'Ahorro',
+        description: 'Aporte a meta de ahorro',
+        date: new Date(),
+        accountId,
+        uid: auth.currentUser.uid,
+        isMSI: false
+    };
+    await addDoc(collection(db, TRANSACTIONS_COL), txPayload);
 };
