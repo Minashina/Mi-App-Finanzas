@@ -216,3 +216,8 @@ export const addFundsToSaving = async (savingId, accountId, amount) => {
     };
     await addDoc(collection(db, TRANSACTIONS_COL), txPayload);
 };
+
+export const deleteSavingGoal = async (id) => {
+    const docRef = doc(db, SAVINGS_COL, id);
+    await deleteDoc(docRef);
+};

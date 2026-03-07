@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { addSavingGoal, addFundsToSaving } from '../services/db';
+import { addSavingGoal, addFundsToSaving, deleteSavingGoal } from '../services/db';
 import { differenceInWeeks, differenceInMonths, isValid, parseISO } from 'date-fns';
-import { PiggyBank, Target, CalendarDays, Plus, PlusCircle, Wallet, ArrowRight } from 'lucide-react';
+import { PiggyBank, Target, CalendarDays, Plus, PlusCircle, Wallet, ArrowRight, Trash2, Infinity as InfinityIcon } from 'lucide-react';
 
 export default function Savings() {
   const { savings, accounts, refreshData } = useFinance();
   const [loading, setLoading] = useState(false);
   const [fundingLoading, setFundingLoading] = useState(false);
+  const [isFreeGoal, setIsFreeGoal] = useState(false);
 
   // Form para nueva meta
   const [formData, setFormData] = useState({
@@ -28,18 +29,21 @@ export default function Savings() {
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.targetAmount || !formData.deadline) return;
+    if (!formData.name) return;
+    if (!isFreeGoal && (!formData.targetAmount || !formData.deadline)) return;
 
     setLoading(true);
     try {
       await addSavingGoal({
         name: formData.name,
-        targetAmount: Number(formData.targetAmount),
+        targetAmount: isFreeGoal ? null : Number(formData.targetAmount),
         savedAmount: 0,
-        deadline: new Date(formData.deadline),
-        frequency: formData.frequency
+        deadline: isFreeGoal ? null : new Date(formData.deadline),
+        frequency: isFreeGoal ? 'Libre' : formData.frequency,
+        isFreeGoal: isFreeGoal
       });
       setFormData({ name: '', targetAmount: '', deadline: '', frequency: 'Mensual' });
+      setIsFreeGoal(false);
       refreshData();
     } catch (err) {
       console.error(err);
@@ -47,6 +51,21 @@ export default function Savings() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteGoal = async (id, name, amount) => {
+      const confirmMsg = amount > 0 
+        ? `¿Estás seguro de eliminar el ahorro "${name}"? El acumulado de $${amount} NO se regresará automáticamente a ninguna tarjeta.` 
+        : `¿Eliminar el ahorro "${name}"?`;
+      if (!window.confirm(confirmMsg)) return;
+      
+      try {
+          await deleteSavingGoal(id);
+          refreshData();
+      } catch (err) {
+          console.error(err);
+          alert("Error al eliminar la meta");
+      }
   };
 
   const handleFundSubmit = async (e, goalId) => {
@@ -129,7 +148,7 @@ export default function Savings() {
           <form onSubmit={handleCreateSubmit} className="flex flex-col gap-4">
             
             <label className="flex flex-col gap-2 font-medium text-sm">
-              Nombre de la Meta
+              Nombre de la Meta / Fondo
               <input 
                 required type="text" placeholder="Ej. Viaje a Japón, Auto nuevo..."
                 className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
@@ -137,36 +156,50 @@ export default function Savings() {
               />
             </label>
 
-            <label className="flex flex-col gap-2 font-medium text-sm">
-              Monto Objetivo ($)
+            <label className="flex items-center gap-2 font-medium text-sm cursor-pointer select-none bg-black/20 p-3 rounded-xl border border-white/5 hover:bg-black/40 xl:whitespace-nowrap">
               <input 
-                required type="number" min="1" step="0.01" placeholder="Ej. 50000"
-                className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-lg font-bold"
-                value={formData.targetAmount} onChange={e => setFormData({...formData, targetAmount: e.target.value})} 
+                type="checkbox" 
+                className="accent-primary w-4 h-4 cursor-pointer"
+                checked={isFreeGoal} 
+                onChange={e => setIsFreeGoal(e.target.checked)} 
               />
+              Ahorro Libre (Sin objetivo ni fecha límite)
             </label>
 
-            <label className="flex flex-col gap-2 font-medium text-sm">
-              Fecha Límite
-              <input 
-                required type="date"
-                className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                value={formData.deadline} onChange={e => setFormData({...formData, deadline: e.target.value})} 
-              />
-            </label>
+            {!isFreeGoal && (
+               <>
+                <label className="flex flex-col gap-2 font-medium text-sm">
+                  Monto Objetivo ($)
+                  <input 
+                    required type="number" min="1" step="0.01" placeholder="Ej. 50000"
+                    className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-lg font-bold"
+                    value={formData.targetAmount} onChange={e => setFormData({...formData, targetAmount: e.target.value})} 
+                  />
+                </label>
 
-            <label className="flex flex-col gap-2 font-medium text-sm">
-              Frecuencia de Ahorro
-              <p className="text-[10px] text-text-muted leading-tight mb-1">Te sugeriremos cuánto apartar basado en tu frecuencia y fecha límite.</p>
-              <select 
-                className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                value={formData.frequency} onChange={e => setFormData({...formData, frequency: e.target.value})}
-              >
-                <option value="Semanal">Semanal</option>
-                <option value="Quincenal">Quincenal</option>
-                <option value="Mensual">Mensual</option>
-              </select>
-            </label>
+                <label className="flex flex-col gap-2 font-medium text-sm">
+                  Fecha Límite
+                  <input 
+                    required type="date"
+                    className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                    value={formData.deadline} onChange={e => setFormData({...formData, deadline: e.target.value})} 
+                  />
+                </label>
+
+                <label className="flex flex-col gap-2 font-medium text-sm">
+                  Frecuencia de Ahorro
+                  <p className="text-[10px] text-text-muted leading-tight mb-1">Te sugeriremos cuánto apartar basado en tu frecuencia y fecha.</p>
+                  <select 
+                    className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                    value={formData.frequency} onChange={e => setFormData({...formData, frequency: e.target.value})}
+                  >
+                    <option value="Semanal">Semanal</option>
+                    <option value="Quincenal">Quincenal</option>
+                    <option value="Mensual">Mensual</option>
+                  </select>
+                </label>
+               </>
+            )}
 
             <button 
               disabled={loading}
@@ -188,9 +221,10 @@ export default function Savings() {
                 </div>
             ) : (
                 savings.map(goal => {
-                    const quota = calculateQuota(goal.targetAmount, goal.savedAmount, goal.deadline, goal.frequency);
-                    const progress = Math.min((goal.savedAmount / goal.targetAmount) * 100, 100);
-                    const isCompleted = progress >= 100;
+                    const isFree = goal.isFreeGoal;
+                    const quota = isFree ? 0 : calculateQuota(goal.targetAmount, goal.savedAmount, goal.deadline, goal.frequency);
+                    const progress = isFree ? 0 : Math.min((goal.savedAmount / goal.targetAmount) * 100, 100);
+                    const isCompleted = !isFree && progress >= 100;
                     
                     return (
                         <div key={goal.id} className="bg-surface rounded-3xl border border-white/5 shadow-xl overflow-hidden p-6 transition-all hover:border-white/10">
@@ -198,13 +232,18 @@ export default function Savings() {
                             {/* Cabecera Meta */}
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-4 gap-4">
                                 <div>
-                                    <h3 className="text-2xl font-bold mb-1 flex items-center gap-2">
-                                        {goal.name} {isCompleted && <span className="text-xs bg-success/20 text-success px-2 py-1 rounded-full uppercase tracking-widest">¡Logrado!</span>}
+                                    <h3 className="text-2xl font-bold mb-1 flex items-center flex-wrap gap-2">
+                                        {goal.name} 
+                                        {isCompleted && <span className="text-xs bg-success/20 text-success px-2 py-1 rounded-full uppercase tracking-widest">¡Logrado!</span>}
+                                        {isFree && <span className="text-[10px] bg-primary/20 text-primary-light px-2 py-1 rounded-full uppercase tracking-wider flex items-center gap-1"><InfinityIcon size={12}/> Libre</span>}
                                     </h3>
-                                    <p className="text-text-muted text-sm font-medium">Meta: ${goal.targetAmount.toLocaleString()}</p>
+                                    {!isFree && <p className="text-text-muted text-sm font-medium">Meta: ${goal.targetAmount?.toLocaleString()}</p>}
                                 </div>
-                                <div className="text-left md:text-right">
-                                    <p className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">Acumulado</p>
+                                <div className="text-left w-full md:w-auto md:text-right flex flex-col items-start md:items-end">
+                                    <div className="flex items-center justify-between w-full md:justify-end gap-4 mb-1">
+                                        <p className="text-xs text-text-muted uppercase tracking-wider font-bold">Acumulado</p>
+                                        <button onClick={() => handleDeleteGoal(goal.id, goal.name, goal.savedAmount)} className="text-text-muted hover:text-danger transition-colors p-1 -mr-1" title="Eliminar"><Trash2 size={16}/></button>
+                                    </div>
                                     <p className={`text-3xl font-black ${isCompleted ? 'text-success' : 'text-primary-light'}`}>
                                         ${goal.savedAmount.toLocaleString()}
                                     </p>
@@ -212,29 +251,34 @@ export default function Savings() {
                             </div>
 
                             {/* Barra Progreso */}
-                            <div className="w-full bg-black/40 rounded-full h-4 overflow-hidden mb-6 relative">
-                                <div 
-                                    className={`h-full rounded-full transition-all duration-1000 ${isCompleted ? 'bg-success' : 'bg-primary'}`}
-                                    style={{ width: `${progress}%` }}
-                                ></div>
-                            </div>
+                            {!isFree && (
+                                <>
+                                    <div className="w-full bg-black/40 rounded-full h-4 overflow-hidden mb-6 relative">
+                                        <div 
+                                            className={`h-full rounded-full transition-all duration-1000 ${isCompleted ? 'bg-success' : 'bg-primary'}`}
+                                            style={{ width: `${progress}%` }}
+                                        ></div>
+                                    </div>
 
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                <div className="bg-background rounded-xl p-3 border border-white/5">
-                                    <p className="text-[10px] text-text-muted uppercase font-bold mb-1">Sugerencia</p>
-                                    <p className="font-bold text-sm">{isCompleted ? '-' : `$${quota.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})} / ${goal.frequency.toLowerCase()}`}</p>
-                                </div>
-                                <div className="bg-background rounded-xl p-3 border border-white/5">
-                                    <p className="text-[10px] text-text-muted uppercase font-bold mb-1">Fecha Límite</p>
-                                    <p className="font-bold text-sm flex items-center xl:whitespace-nowrap gap-1">
-                                        <CalendarDays size={14}/> 
-                                        {(() => {
-                                            const d = goal.deadline.toDate ? goal.deadline.toDate() : new Date(goal.deadline);
-                                            return d.toLocaleDateString();
-                                        })()}
-                                    </p>
-                                </div>
-                            </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                        <div className="bg-background rounded-xl p-3 border border-white/5">
+                                            <p className="text-[10px] text-text-muted uppercase font-bold mb-1">Sugerencia</p>
+                                            <p className="font-bold text-sm">{isCompleted ? '-' : `$${quota.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})} / ${goal.frequency?.toLowerCase()}`}</p>
+                                        </div>
+                                        <div className="bg-background rounded-xl p-3 border border-white/5">
+                                            <p className="text-[10px] text-text-muted uppercase font-bold mb-1">Fecha Límite</p>
+                                            <p className="font-bold text-sm flex items-center xl:whitespace-nowrap gap-1">
+                                                <CalendarDays size={14}/> 
+                                                {(() => {
+                                                    if(!goal.deadline) return '-';
+                                                    const d = goal.deadline.toDate ? goal.deadline.toDate() : new Date(goal.deadline);
+                                                    return d.toLocaleDateString();
+                                                })()}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
 
                             {/* Acciones de Fondeo */}
                             {!isCompleted && (
