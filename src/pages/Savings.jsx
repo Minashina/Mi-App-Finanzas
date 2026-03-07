@@ -15,7 +15,9 @@ export default function Savings() {
     name: '',
     targetAmount: '',
     deadline: '',
-    frequency: 'Mensual'
+    frequency: 'Mensual',
+    accountId: '',
+    annualYield: ''
   });
 
   // Estado para el mini-form de fondear meta
@@ -40,9 +42,11 @@ export default function Savings() {
         savedAmount: 0,
         deadline: isFreeGoal ? null : new Date(formData.deadline),
         frequency: isFreeGoal ? 'Libre' : formData.frequency,
-        isFreeGoal: isFreeGoal
+        isFreeGoal: isFreeGoal,
+        accountId: formData.accountId || null,
+        annualYield: formData.annualYield ? Number(formData.annualYield) : 0
       });
-      setFormData({ name: '', targetAmount: '', deadline: '', frequency: 'Mensual' });
+      setFormData({ name: '', targetAmount: '', deadline: '', frequency: 'Mensual', accountId: '', annualYield: '' });
       setIsFreeGoal(false);
       refreshData();
     } catch (err) {
@@ -117,6 +121,11 @@ export default function Savings() {
     return remaining / periods;
   };
 
+  const calculateDailyReturn = (amount, annualYield) => {
+      if (!amount || !annualYield) return 0;
+      return (amount * (annualYield / 100)) / 365;
+  };
+
   const totalSavedAll = savings.reduce((acc, s) => acc + s.savedAmount, 0);
 
   return (
@@ -164,6 +173,28 @@ export default function Savings() {
                 onChange={e => setIsFreeGoal(e.target.checked)} 
               />
               Ahorro Libre (Sin objetivo ni fecha límite)
+            </label>
+
+            <label className="flex flex-col gap-2 font-medium text-sm">
+              Cuenta de Ahorro
+              <select 
+                className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                value={formData.accountId} onChange={e => setFormData({...formData, accountId: e.target.value})}
+              >
+                  <option value="">Ninguna / Efectivo</option>
+                  {debitAccounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>{acc.name}</option>
+                  ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-2 font-medium text-sm">
+              Rendimiento Anual (%)
+              <input 
+                type="number" min="0" step="0.01" placeholder="Ej. 15 para 15%"
+                className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                value={formData.annualYield} onChange={e => setFormData({...formData, annualYield: e.target.value})} 
+              />
             </label>
 
             {!isFreeGoal && (
@@ -247,6 +278,11 @@ export default function Savings() {
                                     <p className={`text-3xl font-black ${isCompleted ? 'text-success' : 'text-primary-light'}`}>
                                         ${goal.savedAmount.toLocaleString()}
                                     </p>
+                                    {goal.annualYield > 0 && goal.savedAmount > 0 && (
+                                        <p className="text-xs text-success font-bold mt-1">
+                                            +${calculateDailyReturn(goal.savedAmount, goal.annualYield).toFixed(2)} al día ({goal.annualYield}% anual)
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 

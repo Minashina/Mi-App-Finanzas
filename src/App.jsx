@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, CreditCard, PlusCircle, CalendarSync, LogOut } from 'lucide-react';
+import { LayoutDashboard, CreditCard, PlusCircle, CalendarSync, LogOut, Menu, X } from 'lucide-react';
 import { useFinance } from './context/FinanceContext';
 import { useAuth } from './context/AuthContext';
 import clsx from 'clsx';
@@ -15,13 +15,14 @@ import FixedExpenses from './pages/FixedExpenses';
 import Savings from './pages/Savings';
 import { List, CalendarClock as ClockIcon, PiggyBank } from 'lucide-react'; // Iconos extra
 
-const SidebarItem = ({ to, icon: Icon, label }) => {
+const SidebarItem = ({ to, icon: Icon, label, onClick }) => {
   const location = useLocation();
   const isActive = location.pathname === to;
 
   return (
     <Link 
       to={to} 
+      onClick={onClick}
       className={clsx(
         "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
         isActive 
@@ -39,6 +40,7 @@ export default function App() {
   const { currentUser, logout } = useAuth();
   const { loading, error, refreshData } = useFinance();
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Recargar datos cada que el usuario cambia
   useEffect(() => {
@@ -72,23 +74,56 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex bg-background text-text selection:bg-primary/30">
+    <div className="min-h-screen flex bg-background text-text selection:bg-primary/30 relative">
       
-      {/* Sidebar Navigation */}
-      <aside className="w-64 border-r border-surface/50 bg-background/50 backdrop-blur-xl flex flex-col p-4 fixed h-full z-50">
-        <div className="flex items-center gap-2 mb-10 mt-2 px-2">
+      {/* Mobile Top Bar */}
+      <div className="md:hidden flex items-center justify-between p-4 bg-background/90 backdrop-blur-xl border-b border-surface/50 fixed top-0 w-full z-40">
+        <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-purple-800 shadow-[0_0_20px_rgba(139,92,246,0.5)]"></div>
-          <h2 className="text-xl font-black tracking-tight">Finanzas V3</h2>
+          <h2 className="text-xl font-black tracking-tight">Finanzas V5</h2>
+        </div>
+        <button 
+          onClick={() => setIsSidebarOpen(true)}
+          className="p-2 bg-surface rounded-xl border border-white/5 text-text hover:text-primary transition-colors"
+        >
+          <Menu size={24} />
+        </button>
+      </div>
+
+      {/* Overlay for mobile sidebar */}
+      {isSidebarOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar Navigation */}
+      <aside className={clsx(
+        "w-64 border-r border-surface/50 bg-background/95 backdrop-blur-xl flex flex-col p-4 fixed h-full z-50 transition-transform duration-300 md:translate-x-0",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="flex items-center justify-between gap-2 mb-10 mt-2 px-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-purple-800 shadow-[0_0_20px_rgba(139,92,246,0.5)]"></div>
+            <h2 className="text-xl font-black tracking-tight">Finanzas V5</h2>
+          </div>
+          <button 
+            onClick={() => setIsSidebarOpen(false)}
+            className="md:hidden p-2 bg-surface rounded-xl border border-white/5 text-text-muted hover:text-white transition-colors"
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        <nav className="flex flex-col gap-2 flex-grow">
-          <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" />
-          <SidebarItem to="/accounts" icon={CreditCard} label="Mis Tarjetas" />
-          <SidebarItem to="/add" icon={PlusCircle} label="Registrar Gasto" />
-          <SidebarItem to="/fixed-expenses" icon={ClockIcon} label="Gastos Fijos" />
-          <SidebarItem to="/savings" icon={PiggyBank} label="Ahorros" />
-          <SidebarItem to="/history" icon={List} label="Historial" />
-          <SidebarItem to="/msi-debt" icon={CalendarSync} label="Deuda Futura" />
+        <nav className="flex flex-col gap-2 flex-grow overflow-y-auto pr-2 custom-scrollbar">
+          <SidebarItem to="/" icon={LayoutDashboard} label="Dashboard" onClick={() => setIsSidebarOpen(false)} />
+          <SidebarItem to="/accounts" icon={CreditCard} label="Mis Tarjetas" onClick={() => setIsSidebarOpen(false)} />
+          <SidebarItem to="/add" icon={PlusCircle} label="Registrar Gasto" onClick={() => setIsSidebarOpen(false)} />
+          <SidebarItem to="/fixed-expenses" icon={ClockIcon} label="Gastos Fijos" onClick={() => setIsSidebarOpen(false)} />
+          <SidebarItem to="/savings" icon={PiggyBank} label="Ahorros" onClick={() => setIsSidebarOpen(false)} />
+          <SidebarItem to="/history" icon={List} label="Historial" onClick={() => setIsSidebarOpen(false)} />
+          <SidebarItem to="/msi-debt" icon={CalendarSync} label="Deuda Futura" onClick={() => setIsSidebarOpen(false)} />
         </nav>
         
         {/* User Info & Logout */}
@@ -107,7 +142,7 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 ml-64 min-h-screen pb-10">
+      <main className="flex-1 md:ml-64 min-h-screen pt-20 md:pt-0 pb-10 w-full overflow-x-hidden">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/accounts" element={<Accounts />} />

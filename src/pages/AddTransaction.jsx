@@ -69,6 +69,16 @@ export default function AddTransaction() {
     setLoading(true);
     try {
       const amount = Number(formData.amount);
+
+      // --- BALANCE VALIDATION FOR DEBIT/CASH ACCOUNTS ---
+      if (formData.type === 'expense' && selectedAccount && (selectedAccount.type === 'debit' || selectedAccount.type === 'cash')) {
+          if (amount > selectedAccount.balance) {
+              alert(`¡Saldo insuficiente! Esta cuenta solo tiene $${selectedAccount.balance} disponible.`);
+              setLoading(false);
+              return;
+          }
+      }
+
       const isMSIValid = isCreditCard && formData.type === 'expense' && formData.isMSI;
       const msiMonths = Number(formData.msiMonths);
 
