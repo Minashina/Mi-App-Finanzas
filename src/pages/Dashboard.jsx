@@ -47,18 +47,24 @@ export default function Dashboard() {
   const currentMsiExpense = calculateMSIForMonth(msiTxs, currentMonthDate);
   const totalMSIDebtActive = msiTxs.reduce((sum, tx) => sum + calculateRemainingMSIDebt(tx), 0);
 
-  // 3. Gastos Fijos
-  const totalFixedExpenses = fixedExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+  // 3. Gastos Fijos (Solo la porción que falta por pagar este mes)
+  const unpaidFixedExpenses = fixedExpenses.reduce((sum, exp) => {
+      // Buscar si este mes ya se pagó (si hay un gasto con fixedExpenseId)
+      const paidThisMonth = thisMonthTxs.filter(tx => tx.type === 'expense' && tx.fixedExpenseId === exp.id);
+      if (paidThisMonth.length > 0) return sum; // Ya se pagó total o parcialmente este servicio
+      return sum + exp.amount;
+  }, 0);
 
   // KPI 1: Total a Pagar Este Mes
-  const totalToPayThisMonth = totalRegularExpense + currentMsiExpense + totalFixedExpenses;
+  const totalToPayThisMonth = totalRegularExpense + currentMsiExpense + unpaidFixedExpenses;
 
   // KPI 4: Saldo Disponible Real (Líquido)
   const totalCashAndDebit = accounts
     .filter(a => a.type === 'debit' || a.type === 'cash')
     .reduce((sum, a) => sum + (a.balance || 0), 0);
 
-  const realAvailableBalance = totalCashAndDebit - totalToPayThisMonth;
+  // El saldo real solo resta lo que ya debes directamente a las tarjetas o MSI, NO la predicción de gastos fijos.
+  const realAvailableBalance = totalCashAndDebit - (totalRegularExpense + currentMsiExpense);
 
   // KPI 5: Total Ahorrado
   const totalSaved = savings.reduce((sum, s) => sum + s.savedAmount, 0);
@@ -141,7 +147,7 @@ export default function Dashboard() {
                 <p className="text-4xl font-black">${realAvailableBalance.toLocaleString()}</p>
             </div>
             <p className="text-xs text-white/60 mt-4 leading-tight">
-                Dinero libre en débito/efectivo, habiendo restado tus obligaciones de este mes.
+                Dinero libre en débito/efectivo, restando tus deudas en TDC del mes. (No resta gastos fijos aún no pagados).
             </p>
         </div>
 

@@ -1,17 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { addFixedExpense, deleteFixedExpense } from '../services/db';
-import { CalendarClock, PlusCircle, Trash2, Home, Wifi, Zap, Droplets } from 'lucide-react';
+import { addFixedExpense, deleteFixedExpense, addTransaction } from '../services/db';
+import { CalendarClock, PlusCircle, Trash2, Home, Wifi, Zap, Droplets, CheckCircle2, ArrowRight } from 'lucide-react';
+import { isSameMonth } from 'date-fns';
 
 export default function FixedExpenses() {
-  const { fixedExpenses, refreshData } = useFinance();
+  const { fixedExpenses, accounts, transactions, refreshData } = useFinance();
   const [loading, setLoading] = useState(false);
+  const [payLoadingId, setPayLoadingId] = useState(null);
   
   const [formData, setFormData] = useState({
     name: '',
     amount: '',
     category: 'Vivienda'
   });
+
+  const [payData, setPayData] = useState({ accountId: '' });
+  const [payingExpenseId, setPayingExpenseId] = useState(null);
 
   const categories = ['Vivienda', 'Servicios', 'Suscripciones', 'Seguros', 'Educación', 'Otros'];
 
@@ -41,6 +46,50 @@ export default function FixedExpenses() {
       await deleteFixedExpense(id);
       refreshData();
     }
+  };
+
+  const currentMonthDate = new Date();
+
+  const handlePayExpense = async (e, exp) => {
+      e.preventDefault();
+      if (!payData.accountId) {
+          alert("Selecciona una cuenta para pagar");
+          return;
+      }
+      
+      setPayLoadingId(exp.id);
+      try {
+          const selectedAccount = accounts.find(a => a.id === payData.accountId);
+          if (selectedAccount && (selectedAccount.type === 'debit' || selectedAccount.type === 'cash')) {
+              if (exp.amount > selectedAccount.balance) {
+                  alert(`¡Saldo insuficiente! Esta cuenta solo tiene $${selectedAccount.balance} disponible.`);
+                  setPayLoadingId(null);
+                  return;
+              }
+          }
+
+          const tx = {
+              accountId: payData.accountId,
+              type: 'expense',
+              amount: exp.amount,
+              category: exp.category,
+              date: new Date(),
+              description: `Pago Fijo: ${exp.name}`,
+              isMSI: false,
+              msiData: null,
+              fixedExpenseId: exp.id // Vinculación clave
+          };
+
+          await addTransaction(tx);
+          setPayingExpenseId(null);
+          setPayData({ accountId: '' });
+          refreshData();
+      } catch (err) {
+          console.error(err);
+          alert("Error al procesar el pago");
+      } finally {
+          setPayLoadingId(null);
+      }
   };
 
   const getIcon = (category) => {
@@ -130,29 +179,89 @@ export default function FixedExpenses() {
                     </div>
                 ) : (
                     <div className="divide-y divide-white/5">
-                        {fixedExpenses.map(exp => (
-                            <div key={exp.id} className="p-4 sm:p-6 flex items-center justify-between hover:bg-white/5 transition-colors group">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 bg-background rounded-2xl shadow-inner hidden sm:block">
-                                        {getIcon(exp.category)}
+                        {fixedExpenses.map(exp => {
+                            // Revisar si ya se pagó este mes
+                            const isPaidThisMonth = transactions.some(tx => 
+                                tx.fixedExpenseId === exp.id && 
+                                tx.type === 'expense' &&
+                                isSameMonth(tx.date.toDate ? tx.date.toDate() : new Date(tx.date), currentMonthDate)
+                            );
+
+                            return (
+                            <div key={exp.id} className="p-4 sm:p-6 hover:bg-white/5 transition-colors group flex flex-col gap-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-3 rounded-2xl shadow-inner hidden sm:block ${isPaidThisMonth ? 'bg-success/20 text-success' : 'bg-background'}`}>
+                                            {isPaidThisMonth ? <CheckCircle2 size={20} /> : getIcon(exp.category)}
+                                        </div>
+                                        <div>
+                                            <h3 className={`font-bold text-lg ${isPaidThisMonth ? 'text-text-muted line-through' : ''}`}>{exp.name}</h3>
+                                            <p className="text-xs text-text-muted uppercase tracking-wider">{exp.category}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="font-bold text-lg">{exp.name}</h3>
-                                        <p className="text-xs text-text-muted uppercase tracking-wider">{exp.category}</p>
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-right">
+                                            <span className={`font-black text-xl ${isPaidThisMonth ? 'text-success' : ''}`}>${exp.amount.toLocaleString()}</span>
+                                            {isPaidThisMonth && <p className="text-[10px] text-success font-bold uppercase">Pagado</p>}
+                                        </div>
+                                        <button 
+                                            onClick={() => handleDelete(exp.id)} 
+                                            className="p-2 text-text-muted hover:text-danger hover:bg-danger/20 rounded-lg transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                                            title="Eliminar Gasto Fijo"
+                                        >
+                                            <Trash2 size={20} />
+                                        </button>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <span className="font-black text-xl">${exp.amount.toLocaleString()}</span>
-                                    <button 
-                                        onClick={() => handleDelete(exp.id)} 
-                                        className="p-2 text-text-muted hover:text-danger hover:bg-danger/20 rounded-lg transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-                                        title="Eliminar Gasto Fijo"
-                                    >
-                                        <Trash2 size={20} />
-                                    </button>
-                                </div>
+
+                                {/* Zona de Pago (Si no está pagado) */}
+                                {!isPaidThisMonth && (
+                                    <div className="border-t border-white/5 pt-3 mt-1 flex justify-end">
+                                        {payingExpenseId === exp.id ? (
+                                            <form onSubmit={(e) => handlePayExpense(e, exp)} className="flex items-end gap-3 w-full sm:w-auto animate-fade-in bg-black/20 p-3 rounded-xl border border-white/5">
+                                                <label className="flex-1 sm:w-64 flex flex-col gap-1 text-xs font-bold text-text-muted">
+                                                    Pagar desde:
+                                                    <select 
+                                                        required
+                                                        className="bg-surface border border-white/10 p-2 rounded-lg text-white outline-none"
+                                                        value={payData.accountId} onChange={e => setPayData({ accountId: e.target.value })}
+                                                    >
+                                                        <option value="" disabled>Selecciona cuenta o tarjeta</option>
+                                                        {accounts.map(acc => (
+                                                            <option key={acc.id} value={acc.id}>
+                                                                {acc.name} {acc.type === 'debit' || acc.type === 'cash' ? `(Disp: $${acc.balance})` : '(Crédito)'}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </label>
+                                                <div className="flex gap-2">
+                                                    <button 
+                                                        type="button" onClick={() => setPayingExpenseId(null)}
+                                                        className="text-text-muted hover:text-white p-2 text-xs font-bold underline h-[38px] flex items-center"
+                                                    >
+                                                        Cancelar
+                                                    </button>
+                                                    <button 
+                                                        disabled={payLoadingId === exp.id}
+                                                        type="submit" 
+                                                        className="bg-success text-white px-4 rounded-lg hover:bg-success/80 transition-colors h-[38px] flex justify-center items-center disabled:opacity-50 font-bold gap-2 text-sm"
+                                                    >
+                                                        {payLoadingId === exp.id ? '...' : 'Pagar'}
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        ) : (
+                                            <button 
+                                                onClick={() => setPayingExpenseId(exp.id)}
+                                                className="flex items-center gap-2 text-sm font-bold text-primary hover:text-primary-light bg-primary/10 px-4 py-2 rounded-lg transition-colors"
+                                            >
+                                                Marcar como Pagado este mes
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                        ))}
+                        )})}
                     </div>
                 )}
             </div>
