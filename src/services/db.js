@@ -1,9 +1,10 @@
-import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy, getDoc, increment } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 
 const ACCOUNTS_COL = 'accounts';
 const TRANSACTIONS_COL = 'transactions';
 const CATEGORIES_COL = 'categories';
+const FIXED_EXPENSES_COL = 'fixedExpenses'; // Nueva colección V3
 
 // Verifica si el usuario está autenticado antes de operar
 const getExpectedUid = () => {
@@ -52,6 +53,23 @@ export const deleteAccount = async (id) => {
 export const addTransaction = async (transactionData) => {
   const uid = getExpectedUid();
   const payload = { ...transactionData, uid };
+  
+  // 1. Actualizar saldo si la cuenta es de débito o efectivo
+  const accountRef = doc(db, ACCOUNTS_COL, transactionData.accountId);
+  const accountSnap = await getDoc(accountRef);
+  
+  if (accountSnap.exists()) {
+      const account = accountSnap.data();
+      if (account.type === 'debit' || account.type === 'cash') {
+          const isExpense = transactionData.type === 'expense';
+          const amountChange = isExpense ? -transactionData.amount : transactionData.amount;
+          await updateDoc(accountRef, {
+              balance: increment(amountChange)
+          });
+      }
+  }
+
+  // 2. Guardar la transacción
   const docRef = await addDoc(collection(db, TRANSACTIONS_COL), payload);
   return { id: docRef.id, ...payload };
 };
@@ -76,10 +94,56 @@ export const getTransactions = async () => {
 
 export const deleteTransaction = async (id) => {
   const docRef = doc(db, TRANSACTIONS_COL, id);
+  const snap = await getDoc(docRef);
+  
+  if (snap.exists()) {
+      const tx = snap.data();
+      
+      // Revertir el saldo si la cuenta es de débito o efectivo
+      const accountRef = doc(db, ACCOUNTS_COL, tx.accountId);
+      const accountSnap = await getDoc(accountRef);
+      
+      if (accountSnap.exists()) {
+          const account = accountSnap.data();
+          if (account.type === 'debit' || account.type === 'cash') {
+              const isExpense = tx.type === 'expense';
+              // Si era gasto lo sumamos de vuelta, si era ingreso lo restamos
+              const amountChange = isExpense ? tx.amount : -tx.amount; 
+              await updateDoc(accountRef, {
+                  balance: increment(amountChange)
+              });
+          }
+      }
+  }
+
   await deleteDoc(docRef);
 };
 
+// ==========================================
+// FIXED EXPENSES (GASTOS FIJOS) V3
+// ==========================================
 
+export const addFixedExpense = async (expenseData) => {
+  const uid = getExpectedUid();
+  const payload = { ...expenseData, uid, createdAt: new Date() };
+  const docRef = await addDoc(collection(db, FIXED_EXPENSES_COL), payload);
+  return { id: docRef.id, ...payload };
+};
+
+export const getFixedExpenses = async () => {
+    if (!auth.currentUser) return [];
+    const q = query(
+        collection(db, FIXED_EXPENSES_COL),
+        where("uid", "==", auth.currentUser.uid)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const deleteFixedExpense = async (id) => {
+    const docRef = doc(db, FIXED_EXPENSES_COL, id);
+    await deleteDoc(docRef);
+};
 // ==========================================
 // CATEGORIES (CATEGORÍAS CUSTOM)
 // ==========================================
