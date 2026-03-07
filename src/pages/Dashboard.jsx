@@ -159,7 +159,7 @@ export default function Dashboard() {
                 <p className="text-3xl font-black text-danger">${totalToPayThisMonth.toLocaleString()}</p>
             </div>
             <div className="mt-4 text-xs font-medium text-text-muted space-y-1">
-                <div className="flex justify-between"><span>Gastos Fijos:</span> <span>${totalFixedExpenses.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span>Gastos Fijos:</span> <span>${unpaidFixedExpenses.toLocaleString()}</span></div>
                 <div className="flex justify-between"><span>MSI (Cuotas):</span> <span>${currentMsiExpense.toLocaleString()}</span></div>
                 <div className="flex justify-between"><span>TC (Directos):</span> <span>${totalRegularExpense.toLocaleString()}</span></div>
             </div>
