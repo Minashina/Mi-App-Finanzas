@@ -15,7 +15,7 @@ export default function FixedExpenses() {
     category: 'Vivienda'
   });
 
-  const [payData, setPayData] = useState({ accountId: '' });
+  const [payData, setPayData] = useState({ accountId: '', amount: '' });
   const [payingExpenseId, setPayingExpenseId] = useState(null);
 
   const categories = ['Vivienda', 'Servicios', 'Suscripciones', 'Seguros', 'Educación', 'Otros'];
@@ -59,9 +59,16 @@ export default function FixedExpenses() {
       
       setPayLoadingId(exp.id);
       try {
+          const payAmount = Number(payData.amount);
+          if (payAmount <= 0) {
+              alert("El monto debe ser mayor a 0");
+              setPayLoadingId(null);
+              return;
+          }
+
           const selectedAccount = accounts.find(a => a.id === payData.accountId);
           if (selectedAccount && (selectedAccount.type === 'debit' || selectedAccount.type === 'cash')) {
-              if (exp.amount > selectedAccount.balance) {
+              if (payAmount > selectedAccount.balance) {
                   alert(`¡Saldo insuficiente! Esta cuenta solo tiene $${selectedAccount.balance} disponible.`);
                   setPayLoadingId(null);
                   return;
@@ -71,7 +78,7 @@ export default function FixedExpenses() {
           const tx = {
               accountId: payData.accountId,
               type: 'expense',
-              amount: exp.amount,
+              amount: payAmount,
               category: exp.category,
               date: new Date(),
               description: `Pago Fijo: ${exp.name}`,
@@ -82,7 +89,7 @@ export default function FixedExpenses() {
 
           await addTransaction(tx);
           setPayingExpenseId(null);
-          setPayData({ accountId: '' });
+          setPayData({ accountId: '', amount: '' });
           refreshData();
       } catch (err) {
           console.error(err);
@@ -180,29 +187,32 @@ export default function FixedExpenses() {
                 ) : (
                     <div className="divide-y divide-white/5">
                         {fixedExpenses.map(exp => {
-                            // Revisar si ya se pagó este mes
-                            const isPaidThisMonth = transactions.some(tx => 
-                                tx.fixedExpenseId === exp.id && 
-                                tx.type === 'expense' &&
-                                isSameMonth(tx.date.toDate ? tx.date.toDate() : new Date(tx.date), currentMonthDate)
-                            );
+                            // Revisar cuánto ya se pagó este mes
+                            const amountPaidThisMonth = transactions
+                                .filter(tx => tx.fixedExpenseId === exp.id && tx.type === 'expense' && isSameMonth(tx.date.toDate ? tx.date.toDate() : new Date(tx.date), currentMonthDate))
+                                .reduce((acc, tx) => acc + tx.amount, 0);
+
+                            const remainingAmount = exp.amount - amountPaidThisMonth;
+                            const isFullyPaidThisMonth = remainingAmount <= 0;
+                            const isPartiallyPaid = amountPaidThisMonth > 0 && !isFullyPaidThisMonth;
 
                             return (
                             <div key={exp.id} className="p-4 sm:p-6 hover:bg-white/5 transition-colors group flex flex-col gap-4">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-4">
-                                        <div className={`p-3 rounded-2xl shadow-inner hidden sm:block ${isPaidThisMonth ? 'bg-success/20 text-success' : 'bg-background'}`}>
-                                            {isPaidThisMonth ? <CheckCircle2 size={20} /> : getIcon(exp.category)}
+                                        <div className={`p-3 rounded-2xl shadow-inner hidden sm:block ${isFullyPaidThisMonth ? 'bg-success/20 text-success' : (isPartiallyPaid ? 'bg-primary/20 text-primary' : 'bg-background')}`}>
+                                            {isFullyPaidThisMonth ? <CheckCircle2 size={20} /> : getIcon(exp.category)}
                                         </div>
                                         <div>
-                                            <h3 className={`font-bold text-lg ${isPaidThisMonth ? 'text-text-muted line-through' : ''}`}>{exp.name}</h3>
+                                            <h3 className={`font-bold text-lg ${isFullyPaidThisMonth ? 'text-text-muted line-through' : ''}`}>{exp.name}</h3>
                                             <p className="text-xs text-text-muted uppercase tracking-wider">{exp.category}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4">
                                         <div className="text-right">
-                                            <span className={`font-black text-xl ${isPaidThisMonth ? 'text-success' : ''}`}>${exp.amount.toLocaleString()}</span>
-                                            {isPaidThisMonth && <p className="text-[10px] text-success font-bold uppercase">Pagado</p>}
+                                            <span className={`font-black text-xl ${isFullyPaidThisMonth ? 'text-success' : ''}`}>${exp.amount.toLocaleString()}</span>
+                                            {isFullyPaidThisMonth && <p className="text-[10px] text-success font-bold uppercase">Pagado</p>}
+                                            {isPartiallyPaid && <p className="text-[10px] text-primary font-bold uppercase">Abonado: ${amountPaidThisMonth.toLocaleString()}</p>}
                                         </div>
                                         <button 
                                             onClick={() => handleDelete(exp.id)} 
@@ -214,37 +224,48 @@ export default function FixedExpenses() {
                                     </div>
                                 </div>
 
-                                {/* Zona de Pago (Si no está pagado) */}
-                                {!isPaidThisMonth && (
+                                {/* Zona de Pago (Si no está pagado total) */}
+                                {!isFullyPaidThisMonth && (
                                     <div className="border-t border-white/5 pt-3 mt-1 flex justify-end">
                                         {payingExpenseId === exp.id ? (
-                                            <form onSubmit={(e) => handlePayExpense(e, exp)} className="flex items-end gap-3 w-full sm:w-auto animate-fade-in bg-black/20 p-3 rounded-xl border border-white/5">
-                                                <label className="flex-1 sm:w-64 flex flex-col gap-1 text-xs font-bold text-text-muted">
-                                                    Pagar desde:
-                                                    <select 
-                                                        required
-                                                        className="bg-surface border border-white/10 p-2 rounded-lg text-white outline-none"
-                                                        value={payData.accountId} onChange={e => setPayData({ accountId: e.target.value })}
-                                                    >
-                                                        <option value="" disabled>Selecciona cuenta o tarjeta</option>
-                                                        {accounts.map(acc => (
-                                                            <option key={acc.id} value={acc.id}>
-                                                                {acc.name} {acc.type === 'debit' || acc.type === 'cash' ? `(Disp: $${acc.balance})` : '(Crédito)'}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </label>
+                                            <form onSubmit={(e) => handlePayExpense(e, exp)} className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 w-full animate-fade-in bg-black/20 p-3 rounded-xl border border-white/5">
+                                                <div className="flex-1 flex flex-col sm:flex-row gap-3">
+                                                    <label className="flex-1 flex flex-col gap-1 text-xs font-bold text-text-muted">
+                                                        Pago desde:
+                                                        <select 
+                                                            required
+                                                            className="bg-surface border border-white/10 p-2 rounded-lg text-white outline-none"
+                                                            value={payData.accountId} onChange={e => setPayData({ ...payData, accountId: e.target.value })}
+                                                        >
+                                                            <option value="" disabled>Selecciona cuenta o tarjeta</option>
+                                                            {accounts.map(acc => (
+                                                                <option key={acc.id} value={acc.id}>
+                                                                    {acc.name} {acc.type === 'debit' || acc.type === 'cash' ? `(Disp: $${acc.balance})` : '(Crédito)'}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </label>
+                                                    
+                                                    <label className="sm:max-w-[124px] flex flex-col gap-1 text-xs font-bold text-text-muted">
+                                                        Monto a Pagar ($)
+                                                        <input 
+                                                            required type="number" min="0.01" step="0.01" max={remainingAmount.toFixed(2)}
+                                                            className="bg-surface border border-white/10 p-2 rounded-lg text-white font-bold outline-none"
+                                                            value={payData.amount} onChange={e => setPayData({ ...payData, amount: e.target.value })}
+                                                        />
+                                                    </label>
+                                                </div>
                                                 <div className="flex gap-2">
                                                     <button 
                                                         type="button" onClick={() => setPayingExpenseId(null)}
-                                                        className="text-text-muted hover:text-white p-2 text-xs font-bold underline h-[38px] flex items-center"
+                                                        className="flex-1 sm:flex-none text-text-muted hover:text-white p-2 text-xs font-bold underline h-[38px] flex justify-center items-center"
                                                     >
                                                         Cancelar
                                                     </button>
                                                     <button 
                                                         disabled={payLoadingId === exp.id}
                                                         type="submit" 
-                                                        className="bg-success text-white px-4 rounded-lg hover:bg-success/80 transition-colors h-[38px] flex justify-center items-center disabled:opacity-50 font-bold gap-2 text-sm"
+                                                        className="flex-1 sm:flex-none bg-success text-white px-4 rounded-lg hover:bg-success/80 transition-colors h-[38px] flex justify-center items-center disabled:opacity-50 font-bold gap-2 text-sm"
                                                     >
                                                         {payLoadingId === exp.id ? '...' : 'Pagar'}
                                                     </button>
@@ -252,10 +273,13 @@ export default function FixedExpenses() {
                                             </form>
                                         ) : (
                                             <button 
-                                                onClick={() => setPayingExpenseId(exp.id)}
+                                                onClick={() => {
+                                                    setPayingExpenseId(exp.id);
+                                                    setPayData({ accountId: '', amount: remainingAmount }); // Pre-llenar con el saldo restante
+                                                }}
                                                 className="flex items-center gap-2 text-sm font-bold text-primary hover:text-primary-light bg-primary/10 px-4 py-2 rounded-lg transition-colors"
                                             >
-                                                Marcar como Pagado este mes
+                                                {isPartiallyPaid ? 'Abonar cantidad pendiente' : 'Marcar como Pagado / Abonar este mes'}
                                             </button>
                                         )}
                                     </div>

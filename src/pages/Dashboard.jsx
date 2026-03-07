@@ -49,10 +49,14 @@ export default function Dashboard() {
 
   // 3. Gastos Fijos (Solo la porción que falta por pagar este mes)
   const unpaidFixedExpenses = fixedExpenses.reduce((sum, exp) => {
-      // Buscar si este mes ya se pagó (si hay un gasto con fixedExpenseId)
-      const paidThisMonth = thisMonthTxs.filter(tx => tx.type === 'expense' && tx.fixedExpenseId === exp.id);
-      if (paidThisMonth.length > 0) return sum; // Ya se pagó total o parcialmente este servicio
-      return sum + exp.amount;
+      // Buscar la suma de lo que ya se abonó este mes a este gasto
+      const paidThisMonthTotal = thisMonthTxs
+        .filter(tx => tx.type === 'expense' && tx.fixedExpenseId === exp.id)
+        .reduce((acc, tx) => acc + tx.amount, 0);
+        
+      const remainingAmount = exp.amount - paidThisMonthTotal;
+      if (remainingAmount <= 0) return sum; // Ya se pagó total o más de este servicio
+      return sum + remainingAmount;
   }, 0);
 
   // KPI 1: Total a Pagar Este Mes
