@@ -217,13 +217,13 @@ export default function Dashboard() {
             <div className="flex-1 w-full relative">
                 {expensesByCategory.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
+                        <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                             <Pie
                                 data={expensesByCategory}
                                 cx="50%"
                                 cy="50%"
-                                innerRadius={90}
-                                outerRadius={140}
+                                innerRadius="55%"
+                                outerRadius="80%"
                                 paddingAngle={5}
                                 dataKey="value"
                                 stroke="none"
