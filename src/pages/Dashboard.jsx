@@ -7,6 +7,16 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recha
 
 const COLORS = ['#8b5cf6', '#10b981', '#f43f5e', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6', '#8ebd4e'];
 
+// Colors for Accounts
+const ACCOUNT_COLORS = {
+    'default': 'bg-surface border-white/5',
+    'red': 'bg-red-900/20 border-red-500/30',
+    'blue': 'bg-blue-900/20 border-blue-500/30',
+    'green': 'bg-green-900/20 border-green-500/30',
+    'purple': 'bg-purple-900/20 border-purple-500/30',
+    'orange': 'bg-orange-900/20 border-orange-500/30'
+};
+
 export default function Dashboard() {
   const { accounts, transactions, fixedExpenses, savings } = useFinance();
   const currentMonthDate = new Date();
@@ -235,12 +245,15 @@ export default function Dashboard() {
                 <Wallet className="text-success" size={24}/> Tu Dinero
             </h2>
             <div className="flex flex-col gap-4">
-                {accounts.filter(a => a.type === 'debit' || a.type === 'cash').map(acc => (
-                    <div key={acc.id} className="p-4 bg-black/20 rounded-2xl flex justify-between items-center border border-white/5">
-                        <span className="font-semibold">{acc.name}</span>
-                        <span className="font-black text-success">${acc.balance?.toLocaleString()}</span>
-                    </div>
-                ))}
+                {accounts.filter(a => a.type === 'debit' || a.type === 'cash').map(acc => {
+                    const activeColorClass = ACCOUNT_COLORS[acc.color] || ACCOUNT_COLORS['default'];
+                    return (
+                        <div key={acc.id} className={`p-4 rounded-2xl flex justify-between items-center border ${activeColorClass}`}>
+                            <span className="font-semibold">{acc.name}</span>
+                            <span className="font-black text-success">${acc.balance?.toLocaleString()}</span>
+                        </div>
+                    );
+                })}
                 
                 {accounts.filter(a => a.type === 'debit' || a.type === 'cash').length === 0 && (
                      <div className="p-4 text-center text-sm text-text-muted border border-dashed border-white/10 rounded-2xl">
@@ -295,14 +308,16 @@ export default function Dashboard() {
                 <CreditCard className="text-primary" /> Uso de Crédito Real
             </h2>
             <div className="flex flex-col gap-4">
-                {creditUsage.map(cc => (
-                <div key={cc.id} className="bg-surface p-5 rounded-3xl border border-white/5 shadow-lg">
-                    <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-bold">{cc.name}</h3>
-                    <span className="text-xs px-2 py-1 rounded-full bg-white/5 text-text-muted">
-                        Corte: {cc.cutoffDay}
-                    </span>
-                    </div>
+                {creditUsage.map(cc => {
+                    const activeColorClass = ACCOUNT_COLORS[cc.color] || ACCOUNT_COLORS['default'];
+                    return (
+                    <div key={cc.id} className={`p-5 rounded-3xl border shadow-lg ${activeColorClass}`}>
+                        <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold">{cc.name}</h3>
+                        <span className="text-xs px-2 py-1 rounded-full bg-black/30 text-white/80">
+                            Corte: {cc.cutoffDay}
+                        </span>
+                        </div>
                     
                     <div className="mb-2 flex justify-between text-sm">
                     <span className="text-text-muted font-medium">Deuda Total Activa</span>
@@ -321,7 +336,8 @@ export default function Dashboard() {
                     <span>Límite: ${cc.creditLimit.toLocaleString()} ({cc.usagePercent.toFixed(1)}%)</span>
                     </div>
                 </div>
-                ))}
+                    );
+                })}
 
                 {creditCards.length === 0 && (
                 <div className="p-8 text-center text-text-muted bg-surface rounded-3xl border border-dashed border-white/10 text-sm">

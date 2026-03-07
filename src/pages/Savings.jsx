@@ -9,6 +9,7 @@ export default function Savings() {
   const [loading, setLoading] = useState(false);
   const [fundingLoading, setFundingLoading] = useState(false);
   const [isFreeGoal, setIsFreeGoal] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   // Form para nueva meta
   const [formData, setFormData] = useState({
@@ -134,27 +135,35 @@ export default function Savings() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <PiggyBank className="text-primary w-8 h-8" />
-            Metas de Ahorro
+            Ahorros e Inversiones
           </h1>
-          <div className="bg-surface border border-white/10 px-6 py-3 rounded-2xl flex items-center gap-4 shadow-lg">
-             <div>
+          <div className="bg-surface border border-white/10 px-6 py-3 rounded-2xl flex items-center gap-4 shadow-lg w-full md:w-auto">
+             <div className="flex-1">
                 <p className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">Total Ahorrado</p>
-                <p className="text-3xl font-black text-white">${totalSavedAll.toLocaleString()}</p>
+                <p className="text-2xl md:text-3xl font-black text-white">${totalSavedAll.toLocaleString()}</p>
              </div>
-             <div className="bg-primary/20 p-3 rounded-xl ml-2">
+             <div className="bg-primary/20 p-3 rounded-xl">
                  <Target className="text-primary-light" size={24} />
              </div>
           </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="flex flex-col gap-8">
         
-        {/* Formulario para Crear Meta */}
-        <div className="bg-surface p-6 rounded-3xl border border-white/5 shadow-xl h-fit">
-          <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-            <PlusCircle className="text-primary" /> Nueva Meta
-          </h2>
-          <form onSubmit={handleCreateSubmit} className="flex flex-col gap-4">
+        {/* Toggle Formulario para Crear Meta */}
+        <div className="bg-surface p-6 rounded-3xl border border-white/5 shadow-xl transition-all">
+          <div className="flex justify-between items-center cursor-pointer" onClick={() => setShowCreateForm(!showCreateForm)}>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <PlusCircle className={`text-primary transition-transform ${showCreateForm ? 'rotate-45 text-danger' : ''}`} /> 
+                {showCreateForm ? 'Cancelar Creación' : 'Crear Nueva Cuenta de Ahorro o Meta'}
+              </h2>
+              <button className="text-primary font-bold text-sm bg-primary/10 px-4 py-2 rounded-lg">
+                  {showCreateForm ? 'Ocultar' : 'Crear'}
+              </button>
+          </div>
+          
+          {showCreateForm && (
+          <form onSubmit={handleCreateSubmit} className="flex flex-col gap-4 mt-6 pt-6 border-t border-white/10 animate-fade-in">
             
             <label className="flex flex-col gap-2 font-medium text-sm">
               Nombre de la Meta / Fondo
@@ -236,13 +245,14 @@ export default function Savings() {
               disabled={loading}
               className="mt-4 w-full bg-primary text-white py-3 rounded-xl font-bold hover:shadow-[0_0_20px_rgba(139,92,246,0.4)] transition-all disabled:opacity-50"
             >
-              {loading ? 'Creando...' : 'Crear Meta'}
+              {loading ? 'Creando...' : 'Guardar Cuenta / Meta'}
             </button>
           </form>
+          )}
         </div>
 
         {/* Listado de Metas */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-6">
             
             {savings.length === 0 ? (
                 <div className="bg-surface rounded-3xl border border-white/5 shadow-xl p-10 text-center text-text-muted">
@@ -318,43 +328,48 @@ export default function Savings() {
 
                             {/* Acciones de Fondeo */}
                             {!isCompleted && (
-                                <div className="border-t border-white/10 pt-4">
+                                <div className="border-t border-white/10 pt-4 mt-2">
                                     {fundingGoalId === goal.id ? (
-                                        <form onSubmit={(e) => handleFundSubmit(e, goal.id)} className="flex items-end gap-3 bg-black/20 p-3 rounded-2xl border border-white/5 animate-fade-in">
-                                            <label className="flex-1 flex flex-col gap-1 text-xs font-bold text-text-muted">
-                                                Cuenta Origen
-                                                <select 
-                                                    required
-                                                    className="bg-surface border border-white/10 p-2 rounded-lg text-white outline-none"
-                                                    value={fundData.accountId} onChange={e => setFundData({...fundData, accountId: e.target.value})}
+                                        <form onSubmit={(e) => handleFundSubmit(e, goal.id)} className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 bg-black/20 p-4 rounded-2xl border border-white/5 animate-fade-in">
+                                            <div className="flex-1 space-y-3 sm:space-y-0 sm:flex sm:gap-3">
+                                                <label className="flex-1 flex flex-col gap-1 text-xs font-bold text-text-muted">
+                                                    Transferir desde:
+                                                    <select 
+                                                        required
+                                                        className="bg-surface border border-white/10 p-3 rounded-xl text-white outline-none w-full"
+                                                        value={fundData.accountId} onChange={e => setFundData({...fundData, accountId: e.target.value})}
+                                                    >
+                                                        <option value="" disabled>Selecciona tarjeta de débito</option>
+                                                        {debitAccounts.map(acc => (
+                                                            <option key={acc.id} value={acc.id}>{acc.name} (Disp: ${acc.balance})</option>
+                                                        ))}
+                                                    </select>
+                                                </label>
+                                                <label className="sm:max-w-[150px] flex flex-col gap-1 text-xs font-bold text-text-muted">
+                                                    Monto ($)
+                                                    <input 
+                                                        required type="number" min="0.01" step="0.01" placeholder="0.00"
+                                                        className="bg-surface border border-white/10 p-3 rounded-xl text-white font-bold outline-none w-full"
+                                                        value={fundData.amount} onChange={e => setFundData({...fundData, amount: e.target.value})}
+                                                    />
+                                                </label>
+                                            </div>
+                                            
+                                            <div className="flex gap-2 mt-2 sm:mt-0">
+                                                <button 
+                                                    type="button" onClick={() => setFundingGoalId(null)}
+                                                    className="flex-1 sm:flex-none text-text-muted bg-surface/50 border border-white/5 hover:bg-white/10 p-3 rounded-xl text-sm font-bold transition-colors"
                                                 >
-                                                    <option value="" disabled>Selecciona tarjeta de débito</option>
-                                                    {debitAccounts.map(acc => (
-                                                        <option key={acc.id} value={acc.id}>{acc.name} (Disp: ${acc.balance})</option>
-                                                    ))}
-                                                </select>
-                                            </label>
-                                            <label className="flex-1 max-w-[150px] flex flex-col gap-1 text-xs font-bold text-text-muted">
-                                                Monto Aporte ($)
-                                                <input 
-                                                    required type="number" min="0.01" step="0.01"
-                                                    className="bg-surface border border-white/10 p-2 rounded-lg text-white font-bold outline-none"
-                                                    value={fundData.amount} onChange={e => setFundData({...fundData, amount: e.target.value})}
-                                                />
-                                            </label>
-                                            <button 
-                                                disabled={fundingLoading}
-                                                type="submit" 
-                                                className="bg-success text-white p-2 rounded-lg hover:bg-success/80 transition-colors h-[38px] w-[38px] flex justify-center items-center disabled:opacity-50"
-                                            >
-                                                <ArrowRight size={20} />
-                                            </button>
-                                            <button 
-                                                type="button" onClick={() => setFundingGoalId(null)}
-                                                className="text-text-muted hover:text-white p-2 text-xs font-bold underline h-[38px]"
-                                            >
-                                                Cancelar
-                                            </button>
+                                                    Cancelar
+                                                </button>
+                                                <button 
+                                                    disabled={fundingLoading}
+                                                    type="submit" 
+                                                    className="flex-1 sm:flex-none bg-success text-white p-3 px-6 rounded-xl hover:bg-success/80 transition-colors font-bold flex justify-center items-center gap-2 disabled:opacity-50"
+                                                >
+                                                    <PlusCircle size={18} /> Abonar
+                                                </button>
+                                            </div>
                                         </form>
                                     ) : (
                                         <button 

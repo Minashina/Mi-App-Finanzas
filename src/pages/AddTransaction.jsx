@@ -130,7 +130,7 @@ export default function AddTransaction() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-6 relative z-10">
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="flex flex-col gap-2 font-medium">
               Tipo de Movimiento
               <select 
@@ -161,7 +161,7 @@ export default function AddTransaction() {
             </label>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              <label className="flex flex-col gap-2 font-medium">
               Monto Total ($)
               <input 
@@ -185,7 +185,7 @@ export default function AddTransaction() {
           </div>
 
           {/* Categoría Híbrida */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="flex flex-col gap-2 font-medium">
               Categoría
               {!isAddingCat ? (

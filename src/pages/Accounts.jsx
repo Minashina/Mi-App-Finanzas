@@ -1,19 +1,32 @@
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { addAccount, deleteAccount } from '../services/db';
-import { CreditCard, Wallet, Landmark, Trash2, CalendarClock } from 'lucide-react';
+import { addAccount, updateAccount, deleteAccount } from '../services/db';
+import { CreditCard, Wallet, Landmark, Trash2, CalendarClock, Edit2, Palette } from 'lucide-react';
 import { differenceInMonths } from 'date-fns';
+
+const ACCOUNT_COLORS = [
+    { name: 'Predeterminado', value: 'default', hex: 'bg-surface border-white/5' },
+    { name: 'Rojo Carmesí', value: 'red', hex: 'bg-red-900/20 border-red-500/30' },
+    { name: 'Azul Océano', value: 'blue', hex: 'bg-blue-900/20 border-blue-500/30' },
+    { name: 'Verde Esmeralda', value: 'green', hex: 'bg-green-900/20 border-green-500/30' },
+    { name: 'Morado Real', value: 'purple', hex: 'bg-purple-900/20 border-purple-500/30' },
+    { name: 'Naranja Cobre', value: 'orange', hex: 'bg-orange-900/20 border-orange-500/30' }
+];
 
 export default function Accounts() {
   const { accounts, transactions, refreshData } = useFinance();
   const [loading, setLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editId, setEditId] = useState(null);
+  
   const [formData, setFormData] = useState({
     name: '',
     type: 'debit',
     balance: 0,
     creditLimit: 0,
     cutoffDay: 1,
-    paymentDay: 15
+    paymentDay: 15,
+    color: 'default'
   });
 
   const handleSubmit = async (e) => {
@@ -23,6 +36,7 @@ export default function Accounts() {
       const accountToSave = {
         name: formData.name,
         type: formData.type,
+        color: formData.color
       };
       
       if (formData.type === 'debit' || formData.type === 'cash') {
@@ -33,8 +47,13 @@ export default function Accounts() {
         accountToSave.paymentDay = Number(formData.paymentDay);
       }
 
-      await addAccount(accountToSave);
-      setFormData({ name: '', type: 'debit', balance: 0, creditLimit: 0, cutoffDay: 1, paymentDay: 15 });
+      if (isEditing && editId) {
+          await updateAccount(editId, accountToSave);
+      } else {
+          await addAccount(accountToSave);
+      }
+      
+      handleCancelEdit();
       refreshData();
     } catch (err) {
       console.error(err);
@@ -42,6 +61,27 @@ export default function Accounts() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEdit = (acc) => {
+      setIsEditing(true);
+      setEditId(acc.id);
+      setFormData({
+          name: acc.name,
+          type: acc.type,
+          balance: acc.balance || 0,
+          creditLimit: acc.creditLimit || 0,
+          cutoffDay: acc.cutoffDay || 1,
+          paymentDay: acc.paymentDay || 15,
+          color: acc.color || 'default'
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+      setIsEditing(false);
+      setEditId(null);
+      setFormData({ name: '', type: 'debit', balance: 0, creditLimit: 0, cutoffDay: 1, paymentDay: 15, color: 'default' });
   };
 
   const handleDelete = async (id) => {
@@ -69,9 +109,17 @@ export default function Accounts() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Formulario */}
-        <div className="bg-surface p-6 rounded-2xl border border-white/5 shadow-xl h-fit">
-          <h2 className="text-xl font-semibold mb-4">Nueva Cuenta</h2>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="bg-surface p-6 rounded-2xl border border-white/5 shadow-xl h-fit transition-all relative">
+          {isEditing && <div className="absolute inset-0 border-2 border-primary/50 rounded-2xl pointer-events-none blur-[2px]"></div>}
+          <div className="flex justify-between items-center mb-4 relative z-10">
+              <h2 className="text-xl font-semibold">{isEditing ? 'Editar Cuenta' : 'Nueva Cuenta'}</h2>
+              {isEditing && (
+                  <button type="button" onClick={handleCancelEdit} className="text-xs text-text-muted hover:text-white underline">
+                      Cancelar
+                  </button>
+              )}
+          </div>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4 relative z-10">
             
             <label className="flex flex-col gap-1 text-sm text-text-muted">
               Nombre (Ej. Nu, BBVA Oro, Billetera)
@@ -89,12 +137,27 @@ export default function Accounts() {
               <select 
                 className="bg-background border border-white/10 p-2 rounded-lg text-text focus:outline-none focus:border-primary"
                 value={formData.type} 
+                disabled={isEditing}
                 onChange={e => setFormData({...formData, type: e.target.value})}
               >
                 <option value="debit">Débito</option>
                 <option value="credit">Crédito</option>
                 <option value="cash">Efectivo</option>
               </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm text-text-muted">
+              Color Distintivo
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {ACCOUNT_COLORS.map(c => (
+                      <button 
+                        key={c.value} type="button" 
+                        onClick={() => setFormData({...formData, color: c.value})}
+                        title={c.name}
+                        className={`w-8 h-8 rounded-full border-2 transition-all ${c.hex.split(' ')[0]} ${formData.color === c.value ? 'border-primary scale-110 shadow-lg' : 'border-transparent opacity-50 hover:opacity-100'}`}
+                      ></button>
+                  ))}
+              </div>
             </label>
 
             {formData.type === 'credit' ? (
@@ -125,19 +188,21 @@ export default function Accounts() {
               </>
             ) : (
               <label className="flex flex-col gap-1 text-sm text-text-muted">
-                Saldo Inicial ($)
+                Saldo Actual ($)
                 <input 
                   required type="number" 
-                  className="bg-background border border-white/10 p-2 rounded-lg"
+                  disabled={isEditing}
+                  title={isEditing ? 'Para modificar el saldo, ingresa un gasto o ingreso desde Registrar Movimiento' : ''}
+                  className={`bg-background border border-white/10 p-2 rounded-lg ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
                   value={formData.balance} onChange={e => setFormData({...formData, balance: e.target.value})} />
               </label>
             )}
 
             <button 
               disabled={loading}
-              className="mt-4 bg-primary text-white py-2 rounded-lg font-medium hover:bg-primary/80 transition-all disabled:opacity-50"
+              className={`mt-4 text-white py-2 rounded-lg font-medium transition-all disabled:opacity-50 ${isEditing ? 'bg-purple-600 hover:bg-purple-500' : 'bg-primary hover:bg-primary-light'}`}
             >
-              {loading ? 'Guardando...' : 'Guardar Cuenta'}
+              {loading ? 'Guardando...' : isEditing ? 'Actualizar Cuenta' : 'Guardar Cuenta'}
             </button>
           </form>
         </div>
@@ -151,26 +216,34 @@ export default function Accounts() {
                 ? transactions.filter(tx => tx.accountId === acc.id && tx.isMSI && tx.msiData && tx.msiData.endDate) 
                 : [];
 
+            const colorObj = ACCOUNT_COLORS.find(c => c.value === acc.color) || ACCOUNT_COLORS[0];
+            const activeColorClass = colorObj.hex;
+
             return (
-            <div key={acc.id} className="bg-surface p-6 rounded-2xl border border-white/5 relative group overflow-hidden shadow-lg">
+            <div key={acc.id} className={`p-6 rounded-2xl border relative group overflow-hidden shadow-lg transition-all ${activeColorClass}`}>
               <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
               
               <div className="flex justify-between items-start mb-4 relative z-10">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-background rounded-xl">
+                  <div className="p-3 bg-black/30 rounded-xl backdrop-blur-sm">
                     {getIcon(acc.type)}
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold">{acc.name}</h3>
-                    <span className="text-xs text-text-muted uppercase tracking-wider font-semibold">
+                    <h3 className="text-xl font-bold text-white shadow-sm">{acc.name}</h3>
+                    <span className="text-xs text-white/70 uppercase tracking-wider font-semibold">
                       {acc.type === 'credit' ? 'Crédito' : acc.type === 'debit' ? 'Débito' : 'Efectivo'}
                     </span>
                   </div>
                 </div>
                 
-                <button onClick={() => handleDelete(acc.id)} className="text-text-muted hover:text-danger flex-shrink-0 transition-colors p-2">
-                  <Trash2 size={18} />
-                </button>
+                <div className="flex bg-black/30 rounded-lg backdrop-blur-sm overflow-hidden">
+                  <button onClick={() => handleEdit(acc)} className="text-white/60 hover:text-white hover:bg-white/10 transition-colors p-2" title="Editar">
+                      <Edit2 size={18} />
+                  </button>
+                  <button onClick={() => handleDelete(acc.id)} className="text-white/60 hover:text-danger hover:bg-danger/10 flex-shrink-0 transition-colors p-2" title="Eliminar">
+                    <Trash2 size={18} />
+                  </button>
+                </div>
               </div>
 
               <div className="relative z-10 mt-6 pt-4 border-t border-white/10">

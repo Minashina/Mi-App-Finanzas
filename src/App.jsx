@@ -142,7 +142,7 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 md:ml-64 min-h-screen pt-20 md:pt-0 pb-10 w-full overflow-x-hidden">
+      <main className="flex-1 md:ml-64 min-h-screen pt-20 md:pt-0 pb-10 w-full overflow-x-hidden relative">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/accounts" element={<Accounts />} />
@@ -152,6 +152,14 @@ export default function App() {
           <Route path="/history" element={<History />} />
           <Route path="/msi-debt" element={<MSIDebt />} />
         </Routes>
+        
+        {/* Floating Action Button for Mobile */}
+        <Link
+            to="/add"
+            className="md:hidden fixed bottom-6 right-6 z-50 bg-gradient-to-r from-primary to-purple-600 text-white p-4 rounded-full shadow-[0_0_20px_rgba(139,92,246,0.6)] hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+        >
+            <PlusCircle size={28} />
+        </Link>
       </main>
 
     </div>
