@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { projectFutureMSIDebt } from '../utils/msi';
+import { projectFutureMSIDebt, calculateRemainingMSIDebt } from '../utils/msi';
 import { CalendarSync, DollarSign, HelpCircle } from 'lucide-react';
 import { startTour } from '../utils/tourConfig';
 import { format } from 'date-fns';
@@ -20,7 +20,7 @@ export default function MSIDebt() {
     return projectFutureMSIDebt(msiTransactions, 12);
   }, [msiTransactions]);
 
-  const totalMSIDebtActive = msiTransactions.reduce((acc, tx) => acc + (tx.amount), 0);
+  const totalMSIDebtActive = msiTransactions.reduce((acc, tx) => acc + calculateRemainingMSIDebt(tx), 0);
   
   return (
     <div className="p-8 max-w-5xl mx-auto">

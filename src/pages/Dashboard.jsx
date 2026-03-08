@@ -32,7 +32,7 @@ export default function Dashboard() {
 
   const handleOpenPayModal = (cc) => {
       setSelectedCC(cc);
-      setPayAmount(cc.currentStatementDebt.toString());
+      setPayAmount(cc.currentStatementDebt.toFixed(2));
       const debitAccounts = accounts.filter(a => a.type === 'debit' || a.type === 'cash');
       if (debitAccounts.length > 0) setSelectedDebitId(debitAccounts[0].id);
       setShowPayModal(true);
