@@ -217,6 +217,35 @@ export const addFundsToSaving = async (savingId, accountId, amount) => {
     await addDoc(collection(db, TRANSACTIONS_COL), txPayload);
 };
 
+export const withdrawFromSaving = async (savingId, accountId, amount) => {
+    getExpectedUid(); // Check auth
+    
+    // 1. Sumar fondos a la cuenta destino
+    const accountRef = doc(db, ACCOUNTS_COL, accountId);
+    await updateDoc(accountRef, {
+        balance: increment(amount)
+    });
+
+    // 2. Restar fondos de la meta de ahorro
+    const savingRef = doc(db, SAVINGS_COL, savingId);
+    await updateDoc(savingRef, {
+        savedAmount: increment(-amount)
+    });
+
+    // 3. (Opcional) Guardar el movimiento en history
+    const txPayload = {
+        amount,
+        type: 'income',
+        category: 'Ahorro',
+        description: 'Retiro de meta de ahorro',
+        date: new Date(),
+        accountId,
+        uid: auth.currentUser.uid,
+        isMSI: false
+    };
+    await addDoc(collection(db, TRANSACTIONS_COL), txPayload);
+};
+
 export const deleteSavingGoal = async (id) => {
     const docRef = doc(db, SAVINGS_COL, id);
     await deleteDoc(docRef);

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { addSavingGoal, addFundsToSaving, deleteSavingGoal } from '../services/db';
+import { addSavingGoal, addFundsToSaving, withdrawFromSaving, deleteSavingGoal } from '../services/db';
 import { differenceInWeeks, differenceInMonths, isValid, parseISO } from 'date-fns';
 import { PiggyBank, Target, CalendarDays, Plus, PlusCircle, Wallet, ArrowRight, Trash2, Infinity as InfinityIcon } from 'lucide-react';
 
@@ -23,10 +23,41 @@ export default function Savings() {
 
   // Estado para el mini-form de fondear meta
   const [fundingGoalId, setFundingGoalId] = useState(null);
+  const [withdrawingGoalId, setWithdrawingGoalId] = useState(null);
+
   const [fundData, setFundData] = useState({
     accountId: '',
     amount: ''
   });
+
+  const [withdrawData, setWithdrawData] = useState({
+    accountId: '',
+    amount: ''
+  });
+
+  const [displayTargetAmount, setDisplayTargetAmount] = useState('');
+  const [displayFundAmount, setDisplayFundAmount] = useState('');
+  const [displayWithdrawAmount, setDisplayWithdrawAmount] = useState('');
+
+  const formatNumberInput = (e, setter, displaySetter) => {
+      const rawValue = e.target.value.replace(/[^0-9.]/g, '');
+      const parts = rawValue.split('.');
+      if (parts.length > 2) return;
+      
+      setter(rawValue);
+
+      if (rawValue === '') {
+          displaySetter('');
+          return;
+      }
+
+      if (parts.length === 2) {
+          const formattedInt = new Intl.NumberFormat('en-US').format(parts[0] || '0');
+          displaySetter(`${formattedInt}.${parts[1]}`);
+      } else {
+          displaySetter(new Intl.NumberFormat('en-US').format(rawValue));
+      }
+  };
 
   const debitAccounts = accounts.filter(a => a.type === 'debit' || a.type === 'cash');
 
@@ -48,6 +79,7 @@ export default function Savings() {
         annualYield: formData.annualYield ? Number(formData.annualYield) : 0
       });
       setFormData({ name: '', targetAmount: '', deadline: '', frequency: 'Mensual', accountId: '', annualYield: '' });
+      setDisplayTargetAmount('');
       setIsFreeGoal(false);
       refreshData();
     } catch (err) {
@@ -89,10 +121,37 @@ export default function Savings() {
       await addFundsToSaving(goalId, fundData.accountId, Number(fundData.amount));
       setFundingGoalId(null);
       setFundData({ accountId: '', amount: '' });
+      setDisplayFundAmount('');
       refreshData();
     } catch (err) {
       console.error(err);
       alert('Error al transferir fondos al ahorro');
+    } finally {
+      setFundingLoading(false);
+    }
+  };
+
+  const handleWithdrawSubmit = async (e, goalId) => {
+    e.preventDefault();
+    if (!withdrawData.accountId || !withdrawData.amount) return;
+    
+    // Verificar si hay fondos suficientes en el ahorro
+    const saving = savings.find(s => s.id === goalId);
+    if (!saving || saving.savedAmount < Number(withdrawData.amount)) {
+      alert("No tienes suficientes fondos en este ahorro para realizar el retiro.");
+      return;
+    }
+
+    setFundingLoading(true);
+    try {
+      await withdrawFromSaving(goalId, withdrawData.accountId, Number(withdrawData.amount));
+      setWithdrawingGoalId(null);
+      setWithdrawData({ accountId: '', amount: '' });
+      setDisplayWithdrawAmount('');
+      refreshData();
+    } catch (err) {
+      console.error(err);
+      alert('Error al retirar fondos del ahorro');
     } finally {
       setFundingLoading(false);
     }
@@ -211,9 +270,9 @@ export default function Savings() {
                 <label className="flex flex-col gap-2 font-medium text-sm">
                   Monto Objetivo ($)
                   <input 
-                    required type="number" min="1" step="0.01" placeholder="Ej. 50000"
+                    required type="text" inputMode="decimal" placeholder="Ej. 50,000"
                     className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-lg font-bold"
-                    value={formData.targetAmount} onChange={e => setFormData({...formData, targetAmount: e.target.value})} 
+                    value={displayTargetAmount} onChange={e => formatNumberInput(e, (val) => setFormData({...formData, targetAmount: val}), setDisplayTargetAmount)} 
                   />
                 </label>
 
@@ -326,61 +385,119 @@ export default function Savings() {
                                 </>
                             )}
 
-                            {/* Acciones de Fondeo */}
-                            {!isCompleted && (
-                                <div className="border-t border-white/10 pt-4 mt-2">
-                                    {fundingGoalId === goal.id ? (
-                                        <form onSubmit={(e) => handleFundSubmit(e, goal.id)} className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 bg-black/20 p-4 rounded-2xl border border-white/5 animate-fade-in">
-                                            <div className="flex-1 space-y-3 sm:space-y-0 sm:flex sm:gap-3">
-                                                <label className="flex-1 flex flex-col gap-1 text-xs font-bold text-text-muted">
-                                                    Transferir desde:
-                                                    <select 
-                                                        required
-                                                        className="bg-surface border border-white/10 p-3 rounded-xl text-white outline-none w-full"
-                                                        value={fundData.accountId} onChange={e => setFundData({...fundData, accountId: e.target.value})}
-                                                    >
-                                                        <option value="" disabled>Selecciona tarjeta de débito</option>
-                                                        {debitAccounts.map(acc => (
-                                                            <option key={acc.id} value={acc.id}>{acc.name} (Disp: ${acc.balance})</option>
-                                                        ))}
-                                                    </select>
-                                                </label>
-                                                <label className="sm:max-w-[150px] flex flex-col gap-1 text-xs font-bold text-text-muted">
-                                                    Monto ($)
-                                                    <input 
-                                                        required type="number" min="0.01" step="0.01" placeholder="0.00"
-                                                        className="bg-surface border border-white/10 p-3 rounded-xl text-white font-bold outline-none w-full"
-                                                        value={fundData.amount} onChange={e => setFundData({...fundData, amount: e.target.value})}
-                                                    />
-                                                </label>
-                                            </div>
-                                            
-                                            <div className="flex gap-2 mt-2 sm:mt-0">
-                                                <button 
-                                                    type="button" onClick={() => setFundingGoalId(null)}
-                                                    className="flex-1 sm:flex-none text-text-muted bg-surface/50 border border-white/5 hover:bg-white/10 p-3 rounded-xl text-sm font-bold transition-colors"
+                            {/* Acciones de Fondeo y Retiro */}
+                            <div className="border-t border-white/10 pt-4 mt-2">
+                                {fundingGoalId === goal.id ? (
+                                    <form onSubmit={(e) => handleFundSubmit(e, goal.id)} className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 bg-black/20 p-4 rounded-2xl border border-white/5 animate-fade-in">
+                                        <div className="flex-1 space-y-3 sm:space-y-0 sm:flex sm:gap-3">
+                                            <label className="flex-1 flex flex-col gap-1 text-xs font-bold text-text-muted">
+                                                Transferir desde:
+                                                <select 
+                                                    required
+                                                    className="bg-surface border border-white/10 p-3 rounded-xl text-white outline-none w-full"
+                                                    value={fundData.accountId} onChange={e => setFundData({...fundData, accountId: e.target.value})}
                                                 >
-                                                    Cancelar
-                                                </button>
-                                                <button 
-                                                    disabled={fundingLoading}
-                                                    type="submit" 
-                                                    className="flex-1 sm:flex-none bg-success text-white p-3 px-6 rounded-xl hover:bg-success/80 transition-colors font-bold flex justify-center items-center gap-2 disabled:opacity-50"
+                                                    <option value="" disabled>Selecciona tarjeta de débito</option>
+                                                    {debitAccounts.map(acc => (
+                                                        <option key={acc.id} value={acc.id}>{acc.name} (Disp: ${acc.balance})</option>
+                                                    ))}
+                                                </select>
+                                            </label>
+                                            <label className="sm:max-w-[150px] flex flex-col gap-1 text-xs font-bold text-text-muted">
+                                                Monto ($)
+                                                <input 
+                                                    required type="text" inputMode="decimal" placeholder="0.00"
+                                                    className="bg-surface border border-white/10 p-3 rounded-xl text-white font-bold outline-none w-full"
+                                                    value={displayFundAmount} onChange={e => formatNumberInput(e, (val) => setFundData({...fundData, amount: val}), setDisplayFundAmount)}
+                                                />
+                                            </label>
+                                        </div>
+                                        
+                                        <div className="flex gap-2 mt-2 sm:mt-0">
+                                            <button 
+                                                type="button" onClick={() => setFundingGoalId(null)}
+                                                className="flex-1 sm:flex-none text-text-muted bg-surface/50 border border-white/5 hover:bg-white/10 p-3 rounded-xl text-sm font-bold transition-colors"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button 
+                                                disabled={fundingLoading}
+                                                type="submit" 
+                                                className="flex-1 sm:flex-none bg-success text-white p-3 px-6 rounded-xl hover:bg-success/80 transition-colors font-bold flex justify-center items-center gap-2 disabled:opacity-50"
+                                            >
+                                                <PlusCircle size={18} /> Abonar
+                                            </button>
+                                        </div>
+                                    </form>
+                                ) : withdrawingGoalId === goal.id ? (
+                                    <form onSubmit={(e) => handleWithdrawSubmit(e, goal.id)} className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 bg-black/20 p-4 rounded-2xl border border-white/5 animate-fade-in">
+                                        <div className="flex-1 space-y-3 sm:space-y-0 sm:flex sm:gap-3">
+                                            <label className="flex-1 flex flex-col gap-1 text-xs font-bold text-text-muted">
+                                                Retirar hacia:
+                                                <select 
+                                                    required
+                                                    className="bg-surface border border-white/10 p-3 rounded-xl text-white outline-none w-full"
+                                                    value={withdrawData.accountId} onChange={e => setWithdrawData({...withdrawData, accountId: e.target.value})}
                                                 >
-                                                    <PlusCircle size={18} /> Abonar
-                                                </button>
-                                            </div>
-                                        </form>
-                                    ) : (
+                                                    <option value="" disabled>Selecciona tarjeta de destino</option>
+                                                    {debitAccounts.map(acc => (
+                                                        <option key={acc.id} value={acc.id}>{acc.name} (Disp: ${acc.balance})</option>
+                                                    ))}
+                                                </select>
+                                            </label>
+                                            <label className="sm:max-w-[150px] flex flex-col gap-1 text-xs font-bold text-text-muted">
+                                                Monto a Retirar ($)
+                                                <input 
+                                                    required type="text" inputMode="decimal" placeholder="0.00"
+                                                    className="bg-surface border border-white/10 p-3 rounded-xl text-white font-bold outline-none w-full"
+                                                    value={displayWithdrawAmount} onChange={e => formatNumberInput(e, (val) => setWithdrawData({...withdrawData, amount: val}), setDisplayWithdrawAmount)}
+                                                />
+                                            </label>
+                                        </div>
+                                        
+                                        <div className="flex gap-2 mt-2 sm:mt-0">
+                                            <button 
+                                                type="button" onClick={() => setWithdrawingGoalId(null)}
+                                                className="flex-1 sm:flex-none text-text-muted bg-surface/50 border border-white/5 hover:bg-white/10 p-3 rounded-xl text-sm font-bold transition-colors"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button 
+                                                disabled={fundingLoading}
+                                                type="submit" 
+                                                className="flex-1 sm:flex-none bg-primary text-white p-3 px-6 rounded-xl hover:bg-primary/80 transition-colors font-bold flex justify-center items-center gap-2 disabled:opacity-50"
+                                            >
+                                                <ArrowRight size={18} /> Retirar
+                                            </button>
+                                        </div>
+                                    </form>
+                                ) : (
+                                    <div className="flex flex-wrap gap-4">
+                                        {!isCompleted && (
                                         <button 
-                                            onClick={() => setFundingGoalId(goal.id)}
+                                            onClick={() => {
+                                                setFundingGoalId(goal.id);
+                                                setWithdrawingGoalId(null);
+                                            }}
                                             className="flex items-center gap-2 text-sm font-bold text-primary hover:text-primary-light transition-colors"
                                         >
                                             <Plus size={16} /> Abonar a esta meta
                                         </button>
-                                    )}
-                                </div>
-                            )}
+                                        )}
+                                        {goal.savedAmount > 0 && (
+                                        <button 
+                                            onClick={() => {
+                                                setWithdrawingGoalId(goal.id);
+                                                setFundingGoalId(null);
+                                            }}
+                                            className="flex items-center gap-2 text-sm font-bold text-text-muted hover:text-white transition-colors"
+                                        >
+                                            <ArrowRight size={16} /> Disponer (Retirar)
+                                        </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
 
                         </div>
                     )

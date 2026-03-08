@@ -26,6 +26,28 @@ export default function AddTransaction() {
     msiMonths: 3
   });
 
+  const [displayAmount, setDisplayAmount] = useState('');
+
+  const handleAmountChange = (e) => {
+      const rawValue = e.target.value.replace(/[^0-9.]/g, '');
+      const parts = rawValue.split('.');
+      if (parts.length > 2) return;
+      
+      setFormData({...formData, amount: rawValue});
+
+      if (rawValue === '') {
+          setDisplayAmount('');
+          return;
+      }
+
+      if (parts.length === 2) {
+          const formattedInt = new Intl.NumberFormat('en-US').format(parts[0] || '0');
+          setDisplayAmount(`${formattedInt}.${parts[1]}`);
+      } else {
+          setDisplayAmount(new Intl.NumberFormat('en-US').format(rawValue));
+      }
+  };
+
   const selectedAccount = accounts.find(a => a.id === formData.accountId);
   const isCreditCard = selectedAccount?.type === 'credit';
 
@@ -107,6 +129,7 @@ export default function AddTransaction() {
 
       await addTransaction(tx);
       setFormData(prev => ({ ...prev, amount: '', description: '', isMSI: false }));
+      setDisplayAmount('');
       refreshData();
       alert("Transacción registrada con éxito");
     } catch (err) {
@@ -165,11 +188,11 @@ export default function AddTransaction() {
              <label className="flex flex-col gap-2 font-medium">
               Monto Total ($)
               <input 
-                required type="number" min="0.01" step="0.01"
+                required type="text" inputMode="decimal"
                 className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-xl font-bold"
                 placeholder="0.00"
-                value={formData.amount} 
-                onChange={e => setFormData({...formData, amount: e.target.value})} 
+                value={displayAmount} 
+                onChange={handleAmountChange} 
               />
             </label>
 

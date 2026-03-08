@@ -15,7 +15,36 @@ export default function FixedExpenses() {
     category: 'Vivienda'
   });
 
+  const [displayAmount, setDisplayAmount] = useState('');
+
   const [payData, setPayData] = useState({ accountId: '', amount: '' });
+  const [payDisplayAmount, setPayDisplayAmount] = useState('');
+
+  const handleAmountChange = (e, setter, displaySetter) => {
+      // Remove everything except numbers and decimal point
+      const rawValue = e.target.value.replace(/[^0-9.]/g, '');
+      
+      // Prevent multiple decimal points
+      const parts = rawValue.split('.');
+      if (parts.length > 2) return;
+      
+      setter(rawValue);
+
+      // Format for display
+      if (rawValue === '') {
+          displaySetter('');
+          return;
+      }
+
+      if (parts.length === 2) {
+          // Has decimal part
+          const formattedInt = new Intl.NumberFormat('en-US').format(parts[0] || '0');
+          displaySetter(`${formattedInt}.${parts[1]}`);
+      } else {
+          // No decimal part
+          displaySetter(new Intl.NumberFormat('en-US').format(rawValue));
+      }
+  };
   const [payingExpenseId, setPayingExpenseId] = useState(null);
 
   const categories = ['Vivienda', 'Servicios', 'Suscripciones', 'Seguros', 'Educación', 'Otros'];
@@ -32,6 +61,7 @@ export default function FixedExpenses() {
         category: formData.category
       });
       setFormData({ name: '', amount: '', category: 'Vivienda' });
+      setDisplayAmount('');
       refreshData();
     } catch (err) {
       console.error(err);
@@ -90,6 +120,7 @@ export default function FixedExpenses() {
           await addTransaction(tx);
           setPayingExpenseId(null);
           setPayData({ accountId: '', amount: '' });
+          setPayDisplayAmount('');
           refreshData();
       } catch (err) {
           console.error(err);
@@ -147,11 +178,11 @@ export default function FixedExpenses() {
             <label className="flex flex-col gap-2 font-medium">
               Monto Mensual ($)
               <input 
-                required type="number" min="0.01" step="0.01"
+                required type="text" inputMode="decimal"
                 placeholder="0.00"
                 className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-lg font-bold"
-                value={formData.amount} 
-                onChange={e => setFormData({...formData, amount: e.target.value})} 
+                value={displayAmount} 
+                onChange={e => handleAmountChange(e, (val) => setFormData({...formData, amount: val}), setDisplayAmount)} 
               />
             </label>
 
@@ -249,9 +280,12 @@ export default function FixedExpenses() {
                                                     <label className="sm:max-w-[124px] flex flex-col gap-1 text-xs font-bold text-text-muted">
                                                         Monto a Pagar ($)
                                                         <input 
-                                                            required type="number" min="0.01" step="0.01" max={remainingAmount.toFixed(2)}
+                                                            required type="text" inputMode="decimal"
                                                             className="bg-surface border border-white/10 p-2 rounded-lg text-white font-bold outline-none"
-                                                            value={payData.amount} onChange={e => setPayData({ ...payData, amount: e.target.value })}
+                                                            value={payDisplayAmount} 
+                                                            onChange={e => {
+                                                                handleAmountChange(e, (val) => setPayData({...payData, amount: val}), setPayDisplayAmount);
+                                                            }}
                                                         />
                                                     </label>
                                                 </div>
@@ -275,7 +309,8 @@ export default function FixedExpenses() {
                                             <button 
                                                 onClick={() => {
                                                     setPayingExpenseId(exp.id);
-                                                    setPayData({ accountId: '', amount: remainingAmount }); // Pre-llenar con el saldo restante
+                                                    setPayData({ accountId: '', amount: remainingAmount.toString() }); 
+                                                    setPayDisplayAmount(new Intl.NumberFormat('en-US').format(remainingAmount));
                                                 }}
                                                 className="flex items-center gap-2 text-sm font-bold text-primary hover:text-primary-light bg-primary/10 px-4 py-2 rounded-lg transition-colors"
                                             >

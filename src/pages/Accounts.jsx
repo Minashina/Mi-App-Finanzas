@@ -3,6 +3,7 @@ import { useFinance } from '../context/FinanceContext';
 import { addAccount, updateAccount, deleteAccount } from '../services/db';
 import { CreditCard, Wallet, Landmark, Trash2, CalendarClock, Edit2, Palette } from 'lucide-react';
 import { differenceInMonths } from 'date-fns';
+import { calculateRemainingMSIDebt } from '../utils/msi';
 
 const ACCOUNT_COLORS = [
   { name: 'Predeterminado', value: 'default', hex: 'bg-surface border-white/5', baseIcon: 'bg-gray-500' },
@@ -273,26 +274,45 @@ export default function Accounts() {
                       </h4>
                       <div className="flex flex-col gap-3">
                         {accountMSIs.map(tx => {
+                          const remainingDebt = calculateRemainingMSIDebt(tx);
+                          const isFullyPaid = remainingDebt <= 0;
+                          
                           // endDate guardamos un Date de JS
                           const endDate = tx.msiData.endDate.toDate ? tx.msiData.endDate.toDate() : new Date(tx.msiData.endDate);
                           const monthsLeft = differenceInMonths(endDate, new Date());
                           const progress = Math.min(100, Math.max(0, 100 - (monthsLeft / tx.msiData.totalMonths) * 100));
 
                           return (
-                            <div key={tx.id} className="bg-black/20 p-3 rounded-xl">
-                              <div className="flex justify-between text-sm mb-2">
-                                <span className="font-medium truncate pr-2" title={tx.description || tx.category}>{tx.description || tx.category}</span>
-                                <span className="text-text-muted flex-shrink-0">${tx.amount.toLocaleString()} ({tx.msiData.totalMonths}m)</span>
+                            <div key={tx.id} className="bg-black/20 p-3 rounded-xl border border-white/5">
+                              <div className="flex justify-between items-start text-sm mb-2">
+                                <div className="flex flex-col pr-2 overflow-hidden">
+                                  <span className="font-bold truncate" title={tx.description || tx.category}>{tx.description || tx.category}</span>
+                                  <span className="text-xs text-text-muted">Deuda Original: ${tx.amount.toLocaleString()}</span>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <span className="font-black text-primary">${remainingDebt.toLocaleString()}</span>
+                                  <span className="block text-[10px] text-text-muted uppercase tracking-wider">Restante</span>
+                                </div>
                               </div>
-                              <div className="w-full bg-black/40 rounded-full h-2 overflow-hidden mb-1 relative">
+                              
+                              <div className="w-full bg-black/40 rounded-full h-2 overflow-hidden mb-1 relative mt-2">
                                 <div
-                                  className="h-full bg-primary rounded-full transition-all duration-500"
+                                  className={`h-full rounded-full transition-all duration-500 ${isFullyPaid ? 'bg-success' : 'bg-primary'}`}
                                   style={{ width: `${progress}%` }}
                                 ></div>
                               </div>
-                              <p className="text-xs text-text-muted text-right">
-                                Te faltan <span className="font-bold text-white">{monthsLeft <= 0 ? 0 : monthsLeft}</span> meses para terminar de pagar.
-                              </p>
+                              <div className="flex justify-between items-center mt-1">
+                                <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-white/70">
+                                  {tx.msiData.totalMonths} MSI
+                                </span>
+                                <p className="text-xs text-text-muted text-right">
+                                  {isFullyPaid ? (
+                                      <span className="text-success font-bold">¡Pagado!</span>
+                                  ) : (
+                                      <span>Faltan <span className="font-bold text-white">{monthsLeft <= 0 ? 0 : monthsLeft}</span> meses</span>
+                                  )}
+                                </p>
+                              </div>
                             </div>
                           )
                         })}
