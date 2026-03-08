@@ -1,16 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { projectFutureMSIDebt, calculateMSIForMonth } from '../utils/msi';
-import { CalendarSync, HelpCircle } from 'lucide-react';
+import { projectFutureMSIDebt } from '../utils/msi';
+import { CalendarSync, DollarSign, HelpCircle } from 'lucide-react';
 import { startTour } from '../utils/tourConfig';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export default function MSIDebt() {
-  const { transactions, accounts, refreshData } = useFinance();
-  const currentMonthDate = new Date();
-  const currentMonthStr = format(currentMonthDate, 'yyyy-MM');
-  const [loadingToggle, setLoadingToggle] = useState(null);
-  const [payingMsiId, setPayingMsiId] = useState(null);
-  const [payAccountId, setPayAccountId] = useState('');
+  const { transactions } = useFinance();
 
   const msiTransactions = useMemo(() => {
     return transactions.filter(tx => tx.isMSI).map(tx => ({
@@ -25,22 +22,6 @@ export default function MSIDebt() {
 
   const totalMSIDebtActive = msiTransactions.reduce((acc, tx) => acc + (tx.amount), 0);
   
-  const handleTogglePaid = async (tx, isPaying, accountId = null) => {
-    if (loadingToggle === tx.id) return;
-    setLoadingToggle(tx.id);
-    try {
-        const currentPaid = tx.msiData.paidMonths || [];
-        await toggleMSIPayment(tx.id, currentMonthStr, currentPaid, accountId, tx.msiData.monthlyAmount, isPaying);
-        if (refreshData) refreshData();
-        setPayingMsiId(null);
-        setPayAccountId('');
-    } catch (err) {
-        console.error("Error al marcar pago:", err);
-    } finally {
-        setLoadingToggle(null);
-    }
-  };
-
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-8">
@@ -98,117 +79,6 @@ export default function MSIDebt() {
         )}
       </div>
 
-      {msiTransactions.length > 0 && (
-        <div className="mt-12 bg-surface p-8 rounded-3xl border border-white/5">
-          <h2 className="text-xl font-bold mb-6">Detalle de Compras Activas (MSI)</h2>
-          <div className="overflow-x-auto">
-            <table id="tour-msi-table" className="w-full text-left">
-              <thead>
-                <tr className="border-b border-white/10 text-text-muted text-sm uppercase tracking-wider">
-                  <th className="pb-3 font-medium">Concepto</th>
-                  <th className="pb-3 font-medium">Fecha Compra</th>
-                  <th className="pb-3 font-medium">Plazo</th>
-                  <th className="pb-3 font-medium text-right">Monto Mensual</th>
-                  <th className="pb-3 font-medium text-center">Pago Act.</th>
-                  <th className="pb-3 font-medium text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {msiTransactions.map(tx => {
-                  const appliesThisMonth = calculateMSIForMonth([tx], currentMonthDate) > 0;
-                  const isPaidThisMonth = (tx.msiData.paidMonths || []).includes(currentMonthStr);
-                  
-                  return (
-                  <tr key={tx.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                    <td className="py-4">
-                      <p className="font-bold">{tx.category || 'Compra'}</p>
-                      <p className="text-sm text-text-muted">{tx.description}</p>
-                    </td>
-                    <td className="py-4 text-sm text-text-muted">
-                      {format(tx.date, 'dd MMM yyyy', { locale: es })}
-                    </td>
-                    <td className="py-4">
-                      <span className="px-2 py-1 rounded bg-primary/20 text-primary text-xs font-bold">
-                        {tx.msiData.totalMonths} MSI
-                      </span>
-                    </td>
-                    <td className="py-4 text-right font-mono font-medium text-primary">
-                      ${tx.msiData.monthlyAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td id="tour-msi-pay" className="py-4 text-center">
-                        {appliesThisMonth ? (
-                            isPaidThisMonth ? (
-                                <button 
-                                    onClick={() => {
-                                        if (confirm("¿Desmarcar pago? Esto devolverá el dinero a la cuenta donde se debitó originalmente si aún la tienes disponible, o de lo contrario tendrías que ajustarla manual.")) {
-                                            handleTogglePaid(tx, false, null); // For simplicity on undo, we might not always want to auto-refund if we don't remember the account, but standard behavior in simple logic: just toggle state, but here we added generic refund. Let's pass the account they used if we tracked it or ignore auto-refund on undo for now unless they specify. In a robust app, we'd save the `paidAccountId` per month. For now, we just pass null so it untoggles without auto-refund, leaving it manual for undo. 
-                                        }
-                                    }}
-                                    disabled={loadingToggle === tx.id}
-                                    className="inline-flex items-center justify-center p-2 rounded-xl transition-all text-success bg-success/10 hover:bg-success/20"
-                                    title="Desmarcar pago"
-                                >
-                                    <CheckCircle2 size={24} />
-                                </button>
-                            ) : (
-                                payingMsiId === tx.id ? (
-                                    <div className="flex flex-col items-center gap-2 animate-fade-in bg-black/30 p-2 rounded-xl border border-white/5">
-                                        <select 
-                                            className="bg-surface border border-white/10 p-2 rounded-lg text-xs outline-none w-full max-w-[150px]"
-                                            value={payAccountId} 
-                                            onChange={e => setPayAccountId(e.target.value)}
-                                        >
-                                            <option value="" disabled>Cuenta Pago</option>
-                                            {accounts.filter(a => a.type === 'debit' || a.type === 'cash').map(acc => (
-                                                <option key={acc.id} value={acc.id}>
-                                                    {acc.name} (${acc.balance})
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <div className="flex gap-2 w-full">
-                                            <button 
-                                                onClick={() => setPayingMsiId(null)}
-                                                className="flex-1 text-xs text-text-muted hover:text-white"
-                                            >Cancelar</button>
-                                            <button 
-                                                disabled={!payAccountId || loadingToggle === tx.id}
-                                                onClick={() => {
-                                                  const selectedAccount = accounts.find(a => a.id === payAccountId);
-                                                  if (selectedAccount && selectedAccount.balance < tx.msiData.monthlyAmount) {
-                                                    alert(`¡Saldo insuficiente en ${selectedAccount.name}!`);
-                                                    return;
-                                                  }
-                                                  handleTogglePaid(tx, true, payAccountId);
-                                                }}
-                                                className="flex-1 bg-success text-white px-2 py-1 rounded text-xs font-bold disabled:opacity-50"
-                                            >Pagar</button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <button 
-                                        onClick={() => setPayingMsiId(tx.id)}
-                                        disabled={loadingToggle === tx.id}
-                                        className="inline-flex items-center justify-center p-2 rounded-xl transition-all text-text-muted bg-white/5 hover:bg-white/10 hover:text-white"
-                                        title="Marcar como pagado"
-                                    >
-                                        <Circle size={24} />
-                                    </button>
-                                )
-                            )
-                        ) : (
-                            <span className="text-xs text-text-muted">-</span>
-                        )}
-                    </td>
-                    <td className="py-4 text-right font-mono text-text-muted">
-                      ${tx.amount.toLocaleString()}
-                    </td>
-                  </tr>
-                )})}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

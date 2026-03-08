@@ -124,7 +124,7 @@ export default function Dashboard() {
     .filter(a => a.type === 'debit' || a.type === 'cash')
     .reduce((sum, a) => sum + (a.balance || 0), 0);
 
-  const realAvailableBalance = totalCashAndDebit - totalToPayThisMonth;
+  const realAvailableBalance = totalCashAndDebit;
 
   // KPI 5: Total Ahorrado
   const totalSaved = savings.reduce((sum, s) => sum + s.savedAmount, 0);
