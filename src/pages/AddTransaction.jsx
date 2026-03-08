@@ -276,13 +276,13 @@ export default function AddTransaction() {
               {formData.isMSI && (
                 <div className="pl-8 flex flex-col gap-2 animate-in fade-in slide-in-from-top-2">
                   <span className="text-sm text-text-muted">Selecciona el plazo:</span>
-                  <div className="flex gap-3">
-                    {[3, 6, 9, 12, 18, 24].map(months => (
+                  <div className="flex flex-wrap gap-2 md:gap-3">
+                    {[3, 6, 9, 12, 13, 18, 24].map(months => (
                       <button
                         type="button"
                         key={months}
                         onClick={() => setFormData({...formData, msiMonths: months})}
-                        className={`flex-1 py-2 rounded-lg border font-bold transition-all ${formData.msiMonths === months ? 'bg-primary border-primary text-white shadow-lg' : 'bg-background border-white/10 text-text-muted hover:border-primary/50 hover:text-text'}`}
+                        className={`flex-1 min-w-[60px] py-2 rounded-lg border font-bold transition-all ${formData.msiMonths === months ? 'bg-primary border-primary text-white shadow-lg' : 'bg-background border-white/10 text-text-muted hover:border-primary/50 hover:text-text'}`}
                       >
                         {months} MSI
                       </button>
