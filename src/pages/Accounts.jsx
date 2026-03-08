@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { addAccount, updateAccount, deleteAccount } from '../services/db';
 import { CreditCard, Wallet, Landmark, Trash2, CalendarClock, Edit2, Palette } from 'lucide-react';
-import { differenceInMonths } from 'date-fns';
+import { differenceInCalendarMonths } from 'date-fns';
 import { calculateRemainingMSIDebt } from '../utils/msi';
 
 const ACCOUNT_COLORS = [
@@ -279,7 +279,7 @@ export default function Accounts() {
                           
                           // endDate guardamos un Date de JS
                           const endDate = tx.msiData.endDate.toDate ? tx.msiData.endDate.toDate() : new Date(tx.msiData.endDate);
-                          const monthsLeft = differenceInMonths(endDate, new Date());
+                          const monthsLeft = differenceInCalendarMonths(endDate, new Date());
                           const progress = Math.min(100, Math.max(0, 100 - (monthsLeft / tx.msiData.totalMonths) * 100));
 
                           return (
