@@ -18,8 +18,7 @@ const ACCOUNT_COLORS = {
 };
 
 export default function Dashboard() {
-  const { accounts, transactions, fixedExpenses, savings } = useFinance();
-  const currentMonthDate = new Date();
+  const { accounts, transactions, fixedExpenses, savings, globalMonth: currentMonthDate } = useFinance();
 
   // 1. Filtrar Transacciones del Mes
   const thisMonthTxs = useMemo(() => {
