@@ -45,6 +45,9 @@ export default function Dashboard() {
   }, [transactions]);
   
   const currentMsiExpense = calculateMSIForMonth(msiTxs, currentMonthDate);
+  const unpaidMsiExpense = calculateMSIForMonth(msiTxs, currentMonthDate, true, false);
+  const paidMsiExpense = calculateMSIForMonth(msiTxs, currentMonthDate, false, true);
+  
   const totalMSIDebtActive = msiTxs.reduce((sum, tx) => sum + calculateRemainingMSIDebt(tx), 0);
 
   // 3. Gastos Fijos (Solo la porción que falta por pagar este mes)
@@ -60,15 +63,15 @@ export default function Dashboard() {
   }, 0);
 
   // KPI 1: Total a Pagar Este Mes
-  const totalToPayThisMonth = totalRegularExpense + currentMsiExpense + unpaidFixedExpenses;
+  const totalToPayThisMonth = totalRegularExpense + unpaidMsiExpense + unpaidFixedExpenses;
 
   // KPI 4: Saldo Disponible Real (Líquido)
   const totalCashAndDebit = accounts
     .filter(a => a.type === 'debit' || a.type === 'cash')
     .reduce((sum, a) => sum + (a.balance || 0), 0);
 
-  // El saldo real solo resta lo que ya debes directamente a las tarjetas o MSI, NO la predicción de gastos fijos.
-  const realAvailableBalance = totalCashAndDebit - (totalRegularExpense + currentMsiExpense);
+  // El saldo real resta lo que debes a las TC directo. Sumamos las cuotas de MSI SOLO si el usuario indicó que ya las pagó (según requerimiento).
+  const realAvailableBalance = totalCashAndDebit - (totalRegularExpense + paidMsiExpense);
 
   // KPI 5: Total Ahorrado
   const totalSaved = savings.reduce((sum, s) => sum + s.savedAmount, 0);
@@ -164,7 +167,7 @@ export default function Dashboard() {
             </div>
             <div className="mt-4 text-xs font-medium text-text-muted space-y-1">
                 <div className="flex justify-between"><span>Gastos Fijos:</span> <span>${unpaidFixedExpenses.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span>MSI (Cuotas):</span> <span>${currentMsiExpense.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span>MSI (Pdts):</span> <span>${unpaidMsiExpense.toLocaleString()}</span></div>
                 <div className="flex justify-between"><span>TC (Directos):</span> <span>${totalRegularExpense.toLocaleString()}</span></div>
             </div>
         </div>

@@ -221,3 +221,25 @@ export const deleteSavingGoal = async (id) => {
     const docRef = doc(db, SAVINGS_COL, id);
     await deleteDoc(docRef);
 };
+
+// ==========================================
+// MSI PAYMENTS
+// ==========================================
+
+export const toggleMSIPayment = async (transactionId, monthString, currentPaidMonths = []) => {
+    const docRef = doc(db, TRANSACTIONS_COL, transactionId);
+    
+    // Toggle the monthString in the array
+    let newPaidMonths = [...currentPaidMonths];
+    if (newPaidMonths.includes(monthString)) {
+        newPaidMonths = newPaidMonths.filter(m => m !== monthString);
+    } else {
+        newPaidMonths.push(monthString);
+    }
+    
+    await updateDoc(docRef, {
+        "msiData.paidMonths": newPaidMonths
+    });
+    
+    return newPaidMonths;
+};

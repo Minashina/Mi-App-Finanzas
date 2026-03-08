@@ -1,12 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { projectFutureMSIDebt } from '../utils/msi';
-import { CalendarSync, DollarSign } from 'lucide-react';
+import { projectFutureMSIDebt, calculateMSIForMonth } from '../utils/msi';
+import { CalendarSync, DollarSign, CheckCircle2, Circle } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { toggleMSIPayment } from '../services/db';
 
 export default function MSIDebt() {
-  const { transactions } = useFinance();
+  const { transactions, refreshData } = useFinance();
+  const currentMonthDate = new Date();
+  const currentMonthStr = format(currentMonthDate, 'yyyy-MM');
+  const [loadingToggle, setLoadingToggle] = useState(null);
 
   const msiTransactions = useMemo(() => {
     return transactions.filter(tx => tx.isMSI).map(tx => ({
@@ -20,6 +24,20 @@ export default function MSIDebt() {
   }, [msiTransactions]);
 
   const totalMSIDebtActive = msiTransactions.reduce((acc, tx) => acc + (tx.amount), 0);
+  
+  const handleTogglePaid = async (tx) => {
+    if (loadingToggle === tx.id) return;
+    setLoadingToggle(tx.id);
+    try {
+        const currentPaid = tx.msiData.paidMonths || [];
+        await toggleMSIPayment(tx.id, currentMonthStr, currentPaid);
+        if (refreshData) refreshData();
+    } catch (err) {
+        console.error("Error al marcar pago:", err);
+    } finally {
+        setLoadingToggle(null);
+    }
+  };
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -80,11 +98,16 @@ export default function MSIDebt() {
                   <th className="pb-3 font-medium">Fecha Compra</th>
                   <th className="pb-3 font-medium">Plazo</th>
                   <th className="pb-3 font-medium text-right">Monto Mensual</th>
+                  <th className="pb-3 font-medium text-center">Pago Act.</th>
                   <th className="pb-3 font-medium text-right">Total</th>
                 </tr>
               </thead>
               <tbody>
-                {msiTransactions.map(tx => (
+                {msiTransactions.map(tx => {
+                  const appliesThisMonth = calculateMSIForMonth([tx], currentMonthDate) > 0;
+                  const isPaidThisMonth = (tx.msiData.paidMonths || []).includes(currentMonthStr);
+                  
+                  return (
                   <tr key={tx.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                     <td className="py-4">
                       <p className="font-bold">{tx.category || 'Compra'}</p>
@@ -101,11 +124,25 @@ export default function MSIDebt() {
                     <td className="py-4 text-right font-mono font-medium text-primary">
                       ${tx.msiData.monthlyAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
+                    <td className="py-4 text-center">
+                        {appliesThisMonth ? (
+                            <button 
+                                onClick={() => handleTogglePaid(tx)}
+                                disabled={loadingToggle === tx.id}
+                                className={`inline-flex items-center justify-center p-2 rounded-xl transition-all ${isPaidThisMonth ? 'text-success bg-success/10 hover:bg-success/20' : 'text-text-muted bg-white/5 hover:bg-white/10 hover:text-white'}`}
+                                title={isPaidThisMonth ? "Desmarcar pago" : "Marcar como pagado"}
+                            >
+                                {isPaidThisMonth ? <CheckCircle2 size={24} /> : <Circle size={24} />}
+                            </button>
+                        ) : (
+                            <span className="text-xs text-text-muted">-</span>
+                        )}
+                    </td>
                     <td className="py-4 text-right font-mono text-text-muted">
                       ${tx.amount.toLocaleString()}
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
