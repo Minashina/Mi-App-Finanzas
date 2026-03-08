@@ -207,7 +207,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         
         {/* KPI: Saldo Disponible Real */}
-        <div className="bg-gradient-to-br from-primary to-purple-800 p-6 rounded-3xl shadow-lg relative overflow-hidden text-white flex flex-col justify-between">
+        <div id="tour-balance" className="bg-gradient-to-br from-primary to-purple-800 p-6 rounded-3xl shadow-lg relative overflow-hidden text-white flex flex-col justify-between">
             <div className="absolute right-4 top-4 opacity-20"><Landmark size={48} /></div>
             <div>
                 <p className="text-white/80 mb-1 text-xs font-bold uppercase tracking-widest">Saldo Disponible Real</p>
@@ -219,7 +219,7 @@ export default function Dashboard() {
         </div>
 
         {/* KPI: Total a Pagar Este Mes */}
-        <div className="bg-surface p-6 rounded-3xl border border-white/5 shadow-lg relative overflow-hidden flex flex-col justify-between group hover:border-danger/30 transition-colors">
+        <div id="tour-topay" className="bg-surface p-6 rounded-3xl border border-white/5 shadow-lg relative overflow-hidden flex flex-col justify-between group hover:border-danger/30 transition-colors">
             <div className="absolute right-4 top-4 opacity-10 group-hover:opacity-20 transition-opacity text-danger"><Receipt size={48} /></div>
             <div>
                 <p className="text-text-muted mb-1 text-xs font-bold uppercase tracking-widest">A Pagar este Mes</p>
@@ -233,7 +233,7 @@ export default function Dashboard() {
         </div>
 
         {/* KPI: Deuda TC */}
-        <div className="bg-surface p-6 rounded-3xl border border-white/5 shadow-lg relative overflow-hidden flex flex-col justify-between">
+        <div id="tour-credit" className="bg-surface p-6 rounded-3xl border border-white/5 shadow-lg relative overflow-hidden flex flex-col justify-between">
             <div className="absolute right-4 top-4 opacity-5"><CreditCard size={48} /></div>
             <div>
                 <p className="text-text-muted mb-1 text-xs font-bold uppercase tracking-widest">Deuda Actual Total</p>
@@ -245,7 +245,7 @@ export default function Dashboard() {
         </div>
 
         {/* KPI: MSI Activos totales */}
-        <div className="bg-surface p-6 rounded-3xl border border-white/5 shadow-lg relative overflow-hidden flex flex-col justify-between">
+        <div id="tour-msi" className="bg-surface p-6 rounded-3xl border border-white/5 shadow-lg relative overflow-hidden flex flex-col justify-between">
             <div className="absolute right-4 top-4 opacity-5"><CalendarSync size={48} /></div>
             <div>
                 <p className="text-text-muted mb-1 text-xs font-bold uppercase tracking-widest">Deuda MSI Activa</p>
@@ -257,7 +257,7 @@ export default function Dashboard() {
         </div>
 
         {/* KPI: Total Ahorrado */}
-        <div className="bg-surface p-6 rounded-3xl border border-white/5 shadow-lg relative overflow-hidden flex flex-col justify-between">
+        <div id="tour-savings" className="bg-surface p-6 rounded-3xl border border-white/5 shadow-lg relative overflow-hidden flex flex-col justify-between">
             <div className="absolute right-4 top-4 opacity-5"><PiggyBank size={48} /></div>
             <div>
                 <p className="text-text-muted mb-1 text-xs font-bold uppercase tracking-widest">Total Ahorrado</p>

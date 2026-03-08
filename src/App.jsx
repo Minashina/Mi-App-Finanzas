@@ -13,6 +13,7 @@ import Login from './pages/Login';
 import History from './pages/History';
 import FixedExpenses from './pages/FixedExpenses';
 import Savings from './pages/Savings';
+import TourGuide from './components/TourGuide';
 import { List, CalendarClock as ClockIcon, PiggyBank } from 'lucide-react'; // Iconos extra
 
 const SidebarItem = ({ to, icon: Icon, label, onClick }) => {
@@ -99,7 +100,7 @@ export default function App() {
       )}
 
       {/* Sidebar Navigation */}
-      <aside className={clsx(
+      <aside id="tour-sidebar" className={clsx(
         "w-64 border-r border-surface/50 bg-background/95 backdrop-blur-xl flex flex-col p-4 fixed h-full z-50 transition-transform duration-300 md:translate-x-0",
         isSidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
@@ -153,8 +154,12 @@ export default function App() {
           <Route path="/msi-debt" element={<MSIDebt />} />
         </Routes>
         
+        {/* Tour Guide Component */}
+        <TourGuide />
+        
         {/* Floating Action Button for Mobile */}
         <Link
+            id="tour-fab"
             to="/add"
             className="md:hidden fixed bottom-6 right-6 z-50 bg-gradient-to-r from-primary to-purple-600 text-white p-4 rounded-full shadow-[0_0_20px_rgba(139,92,246,0.6)] hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
         >
