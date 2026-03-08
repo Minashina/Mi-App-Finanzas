@@ -1,4 +1,4 @@
-import { isWithinInterval, parseISO, startOfMonth, endOfMonth, addMonths, differenceInMonths, isBefore, isAfter, format } from 'date-fns';
+import { isWithinInterval, parseISO, startOfMonth, endOfMonth, addMonths, differenceInMonths, differenceInCalendarMonths, isBefore, isAfter, format } from 'date-fns';
 
 /**
  * Calcula la mensualidad de los MSI correspondientes al mes indicado (por defecto mes actual)
@@ -108,8 +108,8 @@ export const calculateRemainingMSIDebt = (tx) => {
       return 0;
   }
   
-  // Calculamos los meses de diferencia entre hoy y el fin del adeudo
-  let monthsLeft = differenceInMonths(endDate, today);
+  // Calculamos los meses de diferencia calendárica entre hoy y el fin del adeudo
+  let monthsLeft = differenceInCalendarMonths(endDate, today);
   
   // Prevensión: en caso de que meses restantes sea mayor que los originales (por error de fecha de entrada etc.)
   if (monthsLeft > tx.msiData.totalMonths) {
