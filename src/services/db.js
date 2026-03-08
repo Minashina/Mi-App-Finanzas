@@ -226,20 +226,41 @@ export const deleteSavingGoal = async (id) => {
 // MSI PAYMENTS
 // ==========================================
 
-export const toggleMSIPayment = async (transactionId, monthString, currentPaidMonths = []) => {
+export const toggleMSIPayment = async (transactionId, monthString, currentPaidData = [], accountId = null, amount = 0, isPaying = true) => {
     const docRef = doc(db, TRANSACTIONS_COL, transactionId);
+    let newPaidData = [...currentPaidData];
+
+    // Handle Balance updates if accountId is provided (only for debits/cash generally)
+    if (accountId && amount > 0) {
+        const accountRef = doc(db, ACCOUNTS_COL, accountId);
+        const accountSnap = await getDoc(accountRef);
+        
+        if (accountSnap.exists()) {
+            const account = accountSnap.data();
+            if (account.type === 'debit' || account.type === 'cash') {
+                // If paying, subtract from balance. If undoing payment, add to balance.
+                const amountChange = isPaying ? -amount : amount;
+                await updateDoc(accountRef, {
+                    balance: increment(amountChange)
+                });
+            }
+        }
+    }
     
     // Toggle the monthString in the array
-    let newPaidMonths = [...currentPaidMonths];
-    if (newPaidMonths.includes(monthString)) {
-        newPaidMonths = newPaidMonths.filter(m => m !== monthString);
+    if (isPaying) {
+        // Add month if not exists
+        if (!newPaidData.includes(monthString)) {
+            newPaidData.push(monthString);
+        }
     } else {
-        newPaidMonths.push(monthString);
+        // Remove month
+        newPaidData = newPaidData.filter(m => m !== monthString);
     }
     
     await updateDoc(docRef, {
-        "msiData.paidMonths": newPaidMonths
+        "msiData.paidMonths": newPaidData
     });
     
-    return newPaidMonths;
+    return newPaidData;
 };

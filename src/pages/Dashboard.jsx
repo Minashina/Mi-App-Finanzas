@@ -102,9 +102,10 @@ export default function Dashboard() {
     const actualDebt = Math.max(0, totalDebt);
     
     totalCreditDebt += actualDebt;
+    const availableCredit = Math.max(0, cc.creditLimit - actualDebt);
 
     const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
-    return { ...cc, totalDebt: actualDebt, usagePercent };
+    return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent };
   });
 
   // Datos para Recharts (Dashboard Visual)
@@ -345,8 +346,8 @@ export default function Dashboard() {
                     </div>
 
                     <div className="flex justify-between text-xs text-text-muted font-medium">
-                    <span>0%</span>
-                    <span>Límite: ${cc.creditLimit.toLocaleString()} ({cc.usagePercent.toFixed(1)}%)</span>
+                        <span>Disp: <strong className="text-white">${cc.availableCredit.toLocaleString()}</strong></span>
+                        <span>Límite: ${cc.creditLimit.toLocaleString()} ({cc.usagePercent.toFixed(1)}%)</span>
                     </div>
                 </div>
                     );
