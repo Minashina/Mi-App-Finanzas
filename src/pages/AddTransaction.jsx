@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { addTransaction, addCategory, getCustomCategories } from '../services/db';
 import { calculateMSIPeriod } from '../utils/msi';
-import { PlusCircle, Tag } from 'lucide-react';
+import { PlusCircle, Tag, HelpCircle } from 'lucide-react';
+import { startTour } from '../utils/tourConfig';
 
 const DEFAULT_CATEGORIES = ['Comida', 'Transporte', 'Entretenimiento', 'Salud', 'Servicios', 'Varios'];
 
@@ -148,10 +149,19 @@ export default function AddTransaction() {
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8 flex items-center gap-3">
-        <PlusCircle className="text-primary w-8 h-8" />
-        Registrar Movimiento
-      </h1>
+      <div className="flex items-center gap-3 mb-8">
+        <h1 className="text-3xl font-bold flex items-center gap-3">
+            <PlusCircle className="text-primary w-8 h-8" />
+            Registrar Movimiento
+        </h1>
+        <button 
+            onClick={() => startTour('addTransaction')} 
+            className="bg-white/5 hover:bg-primary/20 text-text-muted hover:text-primary transition-all p-2 rounded-full border border-white/10"
+            title="Ayuda sobre esta pantalla"
+        >
+            <HelpCircle size={20} />
+        </button>
+      </div>
 
       <div className="bg-surface p-8 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden">
         {/* Glow effect */}
@@ -159,7 +169,7 @@ export default function AddTransaction() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-6 relative z-10">
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div id="tour-add-type" className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="flex flex-col gap-2 font-medium">
               Tipo de Movimiento
               <select 
@@ -190,7 +200,7 @@ export default function AddTransaction() {
             </label>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div id="tour-add-amount" className="grid grid-cols-1 md:grid-cols-2 gap-4">
              <label className="flex flex-col gap-2 font-medium">
               Monto Total ($)
               <input 
@@ -214,7 +224,7 @@ export default function AddTransaction() {
           </div>
 
           {/* Categoría Híbrida */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div id="tour-add-cat" className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="flex flex-col gap-2 font-medium">
               Categoría
               {!isAddingCat ? (
@@ -262,7 +272,7 @@ export default function AddTransaction() {
 
           {/* Lógica de MSI (Solo para gastos con Tarjeta de Crédito) */}
           {isCreditCard && formData.type === 'expense' && (
-            <div className="mt-4 p-5 border border-primary/30 bg-primary/5 rounded-2xl flex flex-col gap-4">
+            <div id="tour-add-msi" className="mt-4 p-5 border border-primary/30 bg-primary/5 rounded-2xl flex flex-col gap-4">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input 
                   type="checkbox" 

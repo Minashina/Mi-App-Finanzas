@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { projectFutureMSIDebt, calculateMSIForMonth } from '../utils/msi';
-import { CalendarSync, DollarSign, CheckCircle2, Circle } from 'lucide-react';
+import { CalendarSync, DollarSign, CheckCircle2, Circle, HelpCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toggleMSIPayment } from '../services/db';
+import { startTour } from '../utils/tourConfig';
 
 export default function MSIDebt() {
   const { transactions, accounts, refreshData } = useFinance();
@@ -46,10 +47,19 @@ export default function MSIDebt() {
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <CalendarSync className="text-primary w-8 h-8" />
-          Proyección de Deuda Futura (MSI)
-        </h1>
+        <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+            <CalendarSync className="text-primary w-8 h-8" />
+            Proyección de Deuda Futura (MSI)
+            </h1>
+            <button 
+                onClick={() => startTour('msiDebt')} 
+                className="bg-white/5 hover:bg-primary/20 text-text-muted hover:text-primary transition-all p-2 rounded-full border border-white/10"
+                title="Ayuda sobre esta pantalla"
+            >
+                <HelpCircle size={20} />
+            </button>
+        </div>
         <div className="text-right">
           <p className="text-sm text-text-muted uppercase tracking-wider font-semibold">Total MSI Comprometido</p>
           <p className="text-2xl font-black text-danger">${totalMSIDebtActive.toLocaleString()}</p>
@@ -95,7 +105,7 @@ export default function MSIDebt() {
         <div className="mt-12 bg-surface p-8 rounded-3xl border border-white/5">
           <h2 className="text-xl font-bold mb-6">Detalle de Compras Activas (MSI)</h2>
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table id="tour-msi-table" className="w-full text-left">
               <thead>
                 <tr className="border-b border-white/10 text-text-muted text-sm uppercase tracking-wider">
                   <th className="pb-3 font-medium">Concepto</th>
@@ -128,7 +138,7 @@ export default function MSIDebt() {
                     <td className="py-4 text-right font-mono font-medium text-primary">
                       ${tx.msiData.monthlyAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td className="py-4 text-center">
+                    <td id="tour-msi-pay" className="py-4 text-center">
                         {appliesThisMonth ? (
                             isPaidThisMonth ? (
                                 <button 

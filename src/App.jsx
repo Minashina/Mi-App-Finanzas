@@ -13,7 +13,6 @@ import Login from './pages/Login';
 import History from './pages/History';
 import FixedExpenses from './pages/FixedExpenses';
 import Savings from './pages/Savings';
-import TourGuide from './components/TourGuide';
 import { List, CalendarClock as ClockIcon, PiggyBank } from 'lucide-react'; // Iconos extra
 
 const SidebarItem = ({ to, icon: Icon, label, onClick }) => {
@@ -153,9 +152,6 @@ export default function App() {
           <Route path="/history" element={<History />} />
           <Route path="/msi-debt" element={<MSIDebt />} />
         </Routes>
-        
-        {/* Tour Guide Component */}
-        <TourGuide />
         
         {/* Floating Action Button for Mobile */}
         <Link

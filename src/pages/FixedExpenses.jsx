@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { addFixedExpense, deleteFixedExpense, addTransaction } from '../services/db';
-import { CalendarClock, PlusCircle, Trash2, Home, Wifi, Zap, Droplets, CheckCircle2, ArrowRight } from 'lucide-react';
+import { CalendarClock, PlusCircle, Trash2, Home, Wifi, Zap, Droplets, CheckCircle2, ArrowRight, HelpCircle } from 'lucide-react';
 import { isSameMonth } from 'date-fns';
+import { startTour } from '../utils/tourConfig';
 
 export default function FixedExpenses() {
   const { fixedExpenses, accounts, transactions, refreshData } = useFinance();
@@ -144,10 +145,19 @@ export default function FixedExpenses() {
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <CalendarClock className="text-primary w-8 h-8" />
-            Gastos Fijos
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <CalendarClock className="text-primary w-8 h-8" />
+              Gastos Fijos
+            </h1>
+            <button 
+                onClick={() => startTour('fixedExpenses')} 
+                className="bg-white/5 hover:bg-primary/20 text-text-muted hover:text-primary transition-all p-2 rounded-full border border-white/10"
+                title="Ayuda sobre esta pantalla"
+            >
+                <HelpCircle size={20} />
+            </button>
+          </div>
           <div className="bg-surface border border-white/10 px-6 py-3 rounded-2xl shadow-lg">
               <p className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">Total Fijo Mensual</p>
               <p className="text-2xl font-black text-danger">${totalFixed.toLocaleString()}</p>
@@ -157,7 +167,7 @@ export default function FixedExpenses() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Formulario */}
-        <div className="bg-surface p-6 rounded-3xl border border-white/5 shadow-xl h-fit">
+        <div id="tour-fixed-form" className="bg-surface p-6 rounded-3xl border border-white/5 shadow-xl h-fit">
           <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
             <PlusCircle className="text-primary" /> Agregar Gasto Fijo
           </h2>
@@ -207,7 +217,7 @@ export default function FixedExpenses() {
         </div>
 
         {/* Lista de Gastos Fijos */}
-        <div className="lg:col-span-2">
+        <div id="tour-fixed-list" className="lg:col-span-2">
             <div className="bg-surface rounded-3xl border border-white/5 shadow-xl overflow-hidden">
                 {fixedExpenses.length === 0 ? (
                     <div className="p-10 text-center text-text-muted">

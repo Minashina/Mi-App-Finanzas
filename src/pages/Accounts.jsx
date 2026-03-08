@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { addAccount, updateAccount, deleteAccount } from '../services/db';
-import { CreditCard, Wallet, Landmark, Trash2, CalendarClock, Edit2, Palette } from 'lucide-react';
+import { CreditCard, Wallet, Landmark, Trash2, CalendarClock, Edit2, Palette, HelpCircle } from 'lucide-react';
 import { differenceInCalendarMonths } from 'date-fns';
 import { calculateRemainingMSIDebt } from '../utils/msi';
+import { startTour } from '../utils/tourConfig';
 
 const ACCOUNT_COLORS = [
   { name: 'Predeterminado', value: 'default', hex: 'bg-surface border-white/5', baseIcon: 'bg-gray-500' },
@@ -103,14 +104,23 @@ export default function Accounts() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8 flex items-center gap-3">
-        <CreditCard className="text-primary w-8 h-8" />
-        Mis Tarjetas y Cuentas
-      </h1>
+      <div className="flex items-center gap-3 mb-8">
+        <h1 className="text-3xl font-bold flex items-center gap-3">
+            <CreditCard className="text-primary w-8 h-8" />
+            Mis Tarjetas y Cuentas
+        </h1>
+        <button 
+            onClick={() => startTour('accounts')} 
+            className="bg-white/5 hover:bg-primary/20 text-text-muted hover:text-primary transition-all p-2 rounded-full border border-white/10"
+            title="Ayuda sobre esta pantalla"
+        >
+            <HelpCircle size={20} />
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Formulario */}
-        <div className="bg-surface p-6 rounded-2xl border border-white/5 shadow-xl h-fit transition-all relative">
+        <div id="tour-acc-form" className="bg-surface p-6 rounded-2xl border border-white/5 shadow-xl h-fit transition-all relative">
           {isEditing && <div className="absolute inset-0 border-2 border-primary/50 rounded-2xl pointer-events-none blur-[2px]"></div>}
           <div className="flex justify-between items-center mb-4 relative z-10">
             <h2 className="text-xl font-semibold">{isEditing ? 'Editar Cuenta' : 'Nueva Cuenta'}</h2>
@@ -209,7 +219,7 @@ export default function Accounts() {
         </div>
 
         {/* Lista de Cuentas */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
+        <div id="tour-acc-list" className="lg:col-span-2 flex flex-col gap-6">
           {accounts.map(acc => {
 
             // Buscar compras activas MSI de esta cuenta

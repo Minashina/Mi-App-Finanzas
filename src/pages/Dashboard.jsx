@@ -2,8 +2,9 @@ import React, { useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { calculateMSIForMonth, calculateRemainingMSIDebt } from '../utils/msi';
 import { isSameMonth } from 'date-fns';
-import { LayoutDashboard, Wallet, Receipt, CalendarSync, Landmark, PieChart as PieIcon, CreditCard, PiggyBank, Clock3 } from 'lucide-react';
+import { LayoutDashboard, Wallet, Receipt, CalendarSync, Landmark, PieChart as PieIcon, CreditCard, PiggyBank, Clock3, HelpCircle } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { startTour } from '../utils/tourConfig';
 
 const COLORS = ['#8b5cf6', '#10b981', '#f43f5e', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6', '#8ebd4e'];
 
@@ -197,10 +198,19 @@ export default function Dashboard() {
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
       
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <LayoutDashboard className="text-primary w-8 h-8" />
-            Resumen de {currentMonthDate.toLocaleString('es-MX', { month: 'long' }).toUpperCase()}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <LayoutDashboard className="text-primary w-8 h-8" />
+              Resumen de {currentMonthDate.toLocaleString('es-MX', { month: 'long' }).toUpperCase()}
+            </h1>
+            <button 
+                onClick={() => startTour('dashboard')} 
+                className="bg-white/5 hover:bg-primary/20 text-text-muted hover:text-primary transition-all p-2 rounded-full border border-white/10"
+                title="Ayuda sobre esta pantalla"
+            >
+                <HelpCircle size={20} />
+            </button>
+          </div>
       </div>
 
       {/* 5 KPIs Financieros (Top Level) */}

@@ -1,7 +1,8 @@
 import React from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { deleteTransaction } from '../services/db';
-import { List, Trash2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { List, Trash2, ArrowUpRight, ArrowDownRight, HelpCircle } from 'lucide-react';
+import { startTour } from '../utils/tourConfig';
 
 export default function History() {
   const { transactions, accounts, refreshData } = useFinance();
@@ -20,10 +21,19 @@ export default function History() {
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8 flex items-center gap-3">
-        <List className="text-primary w-8 h-8" />
-        Historial de Movimientos
-      </h1>
+      <div className="flex items-center gap-3 mb-8">
+        <h1 className="text-3xl font-bold flex items-center gap-3">
+            <List className="text-primary w-8 h-8" />
+            Historial de Movimientos
+        </h1>
+        <button 
+            onClick={() => startTour('history')} 
+            className="bg-white/5 hover:bg-primary/20 text-text-muted hover:text-primary transition-all p-2 rounded-full border border-white/10"
+            title="Ayuda sobre esta pantalla"
+        >
+            <HelpCircle size={20} />
+        </button>
+      </div>
 
       <div className="bg-surface rounded-3xl border border-white/5 shadow-xl overflow-hidden">
         
@@ -34,7 +44,7 @@ export default function History() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[700px]">
+            <table id="tour-hist-table" className="w-full text-left border-collapse min-w-[700px]">
               <thead>
                 <tr className="bg-black/20 text-text-muted text-sm uppercase tracking-wider">
                   <th className="px-6 py-4 font-bold rounded-tl-3xl">Fecha</th>

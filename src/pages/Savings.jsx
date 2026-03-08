@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { addSavingGoal, addFundsToSaving, withdrawFromSaving, deleteSavingGoal } from '../services/db';
 import { differenceInWeeks, differenceInMonths, isValid, parseISO } from 'date-fns';
-import { PiggyBank, Target, CalendarDays, Plus, PlusCircle, Wallet, ArrowRight, Trash2, Infinity as InfinityIcon } from 'lucide-react';
+import { PiggyBank, Target, CalendarDays, Plus, PlusCircle, Wallet, ArrowRight, Trash2, Infinity as InfinityIcon, HelpCircle } from 'lucide-react';
+import { startTour } from '../utils/tourConfig';
 
 export default function Savings() {
   const { savings, accounts, refreshData } = useFinance();
@@ -192,10 +193,19 @@ export default function Savings() {
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
       
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <PiggyBank className="text-primary w-8 h-8" />
-            Ahorros e Inversiones
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <PiggyBank className="text-primary w-8 h-8" />
+              Ahorros e Inversiones
+            </h1>
+            <button 
+                onClick={() => startTour('savings')} 
+                className="bg-white/5 hover:bg-primary/20 text-text-muted hover:text-primary transition-all p-2 rounded-full border border-white/10"
+                title="Ayuda sobre esta pantalla"
+            >
+                <HelpCircle size={20} />
+            </button>
+          </div>
           <div className="bg-surface border border-white/10 px-6 py-3 rounded-2xl flex items-center gap-4 shadow-lg w-full md:w-auto">
              <div className="flex-1">
                 <p className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">Total Ahorrado</p>
@@ -210,7 +220,7 @@ export default function Savings() {
       <div className="flex flex-col gap-8">
         
         {/* Toggle Formulario para Crear Meta */}
-        <div className="bg-surface p-6 rounded-3xl border border-white/5 shadow-xl transition-all">
+        <div id="tour-sav-form" className="bg-surface p-6 rounded-3xl border border-white/5 shadow-xl transition-all">
           <div className="flex justify-between items-center cursor-pointer" onClick={() => setShowCreateForm(!showCreateForm)}>
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <PlusCircle className={`text-primary transition-transform ${showCreateForm ? 'rotate-45 text-danger' : ''}`} /> 
@@ -233,7 +243,7 @@ export default function Savings() {
               />
             </label>
 
-            <label className="flex items-center gap-2 font-medium text-sm cursor-pointer select-none bg-black/20 p-3 rounded-xl border border-white/5 hover:bg-black/40 xl:whitespace-nowrap">
+            <label id="tour-sav-free" className="flex items-center gap-2 font-medium text-sm cursor-pointer select-none bg-black/20 p-3 rounded-xl border border-white/5 hover:bg-black/40 xl:whitespace-nowrap">
               <input 
                 type="checkbox" 
                 className="accent-primary w-4 h-4 cursor-pointer"
@@ -311,7 +321,7 @@ export default function Savings() {
         </div>
 
         {/* Listado de Metas */}
-        <div className="space-y-6">
+        <div id="tour-sav-list" className="space-y-6">
             
             {savings.length === 0 ? (
                 <div className="bg-surface rounded-3xl border border-white/5 shadow-xl p-10 text-center text-text-muted">
