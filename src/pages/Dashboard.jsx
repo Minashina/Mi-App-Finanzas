@@ -91,8 +91,9 @@ export default function Dashboard() {
     .filter(a => a.type === 'debit' || a.type === 'cash')
     .reduce((sum, a) => sum + (a.balance || 0), 0);
 
-  // El saldo real resta lo que debes a las TC directo. Sumamos las cuotas de MSI SOLO si el usuario indicó que ya las pagó (según requerimiento).
-  const realAvailableBalance = totalCashAndDebit - (totalRegularExpense + paidMsiExpense);
+  // El saldo real ahora SOLO resta las cuotas de MSI que el usuario indicó explícitamente haber pagado.
+  // Los gastos regulares de TC NO se restan aquí, ya que el usuario los pagará manualmente registrando un egreso a la TDC.
+  const realAvailableBalance = totalCashAndDebit - paidMsiExpense;
 
   // KPI 5: Total Ahorrado
   const totalSaved = savings.reduce((sum, s) => sum + s.savedAmount, 0);
@@ -126,7 +127,34 @@ export default function Dashboard() {
     const availableCredit = Math.max(0, cc.creditLimit - actualDebt);
 
     const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
-    return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent };
+
+    // --- CÁLCULO DE ESTADO DE CUENTA ACTUAL (A Pagar Este Mes/Corte) ---
+    const statementExpenses = ccTxs.filter(tx => {
+       if (tx.type !== 'expense' || tx.isMSI) return false;
+       const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+       if (cc.cutoffDay) {
+           const cutoff = Number(cc.cutoffDay);
+           const targetYear = currentMonthDate.getFullYear();
+           const targetMonth = currentMonthDate.getMonth();
+           const currentStatementCutoff = new Date(targetYear, targetMonth, cutoff);
+           currentStatementCutoff.setHours(23, 59, 59, 999);
+           const previousStatementCutoff = new Date(targetYear, targetMonth - 1, cutoff);
+           previousStatementCutoff.setHours(23, 59, 59, 999);
+           return txDate > previousStatementCutoff && txDate <= currentStatementCutoff;
+       }
+       return isSameMonth(txDate, currentMonthDate);
+    }).reduce((sum, tx) => sum + tx.amount, 0);
+
+    // Sumar MSI impagos aplicables a este mes
+    const statementMSI = calculateMSIForMonth(ccTxs.filter(tx => tx.isMSI), currentMonthDate, true, false);
+    
+    // (Opcional) Restar abonos recibidos dentro de este mismo corte.
+    // Para no complicarlo, asumiendo "A pagar este corte" como un snapshot. 
+    // Si queremos ser exactos a la vida real, los pagos restan el 'statement'. 
+    // Usaremos el monto crudo facturado por simplicidad según el diseño solicitado.
+    const currentStatementDebt = statementExpenses + statementMSI;
+
+    return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent, currentStatementDebt };
   });
 
   // Datos para Recharts (Dashboard Visual)
@@ -365,8 +393,13 @@ export default function Dashboard() {
                         </div>
                     
                     <div className="mb-2 flex justify-between text-sm">
-                    <span className="text-text-muted font-medium">Deuda Total Activa</span>
-                    <span className="font-bold text-lg">${cc.totalDebt.toLocaleString()}</span>
+                        <span className="text-text-muted font-medium">Deuda Total Activa</span>
+                        <span className="font-bold text-lg">${cc.totalDebt.toLocaleString()}</span>
+                    </div>
+
+                    <div className="mb-4 flex justify-between items-center text-sm bg-danger/10 p-2.5 rounded-xl border border-danger/20">
+                        <span className="text-danger font-bold text-xs uppercase tracking-wide">A Pagar este Corte</span>
+                        <span className="font-black text-xl text-danger">${cc.currentStatementDebt.toLocaleString()}</span>
                     </div>
                     
                     <div className="w-full bg-black/40 rounded-full h-3 overflow-hidden mb-2 relative">
