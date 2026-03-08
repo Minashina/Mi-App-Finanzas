@@ -255,41 +255,40 @@ export const deleteSavingGoal = async (id) => {
 // MSI PAYMENTS
 // ==========================================
 
-export const toggleMSIPayment = async (transactionId, monthString, currentPaidData = [], accountId = null, amount = 0, isPaying = true) => {
-    const docRef = doc(db, TRANSACTIONS_COL, transactionId);
-    let newPaidData = [...currentPaidData];
+export const payCreditCard = async (creditAccountId, debitAccountId, amount, monthString) => {
+    getExpectedUid();
 
-    // Handle Balance updates if accountId is provided (only for debits/cash generally)
-    if (accountId && amount > 0) {
-        const accountRef = doc(db, ACCOUNTS_COL, accountId);
-        const accountSnap = await getDoc(accountRef);
-        
-        if (accountSnap.exists()) {
-            const account = accountSnap.data();
-            if (account.type === 'debit' || account.type === 'cash') {
-                // If paying, subtract from balance. If undoing payment, add to balance.
-                const amountChange = isPaying ? -amount : amount;
-                await updateDoc(accountRef, {
-                    balance: increment(amountChange)
-                });
-            }
-        }
-    }
-    
-    // Toggle the monthString in the array
-    if (isPaying) {
-        // Add month if not exists
-        if (!newPaidData.includes(monthString)) {
-            newPaidData.push(monthString);
-        }
-    } else {
-        // Remove month
-        newPaidData = newPaidData.filter(m => m !== monthString);
-    }
-    
-    await updateDoc(docRef, {
-        "msiData.paidMonths": newPaidData
+    // 1. Gasto en la cuenta de débito
+    const expenseTx = {
+        amount,
+        type: 'expense',
+        category: 'Pago de Tarjeta',
+        description: `Transferencia a TC (${monthString})`,
+        date: new Date(),
+        accountId: debitAccountId,
+        uid: auth.currentUser.uid,
+        isMSI: false
+    };
+
+    // 2. Ingreso (Abono) en la tarjeta de crédito
+    const incomeTx = {
+        amount,
+        type: 'income',
+        category: 'Pago de Tarjeta',
+        description: `Pago recibido (${monthString})`,
+        date: new Date(),
+        accountId: creditAccountId,
+        uid: auth.currentUser.uid,
+        isMSI: false
+    };
+
+    // Actualizamos el saldo de la cuenta de débito
+    const debitRef = doc(db, ACCOUNTS_COL, debitAccountId);
+    await updateDoc(debitRef, {
+        balance: increment(-amount)
     });
-    
-    return newPaidData;
+
+    // Registramos ambos movimientos para el historial
+    await addDoc(collection(db, TRANSACTIONS_COL), expenseTx);
+    await addDoc(collection(db, TRANSACTIONS_COL), incomeTx);
 };

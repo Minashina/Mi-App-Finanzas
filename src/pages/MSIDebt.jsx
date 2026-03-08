@@ -1,10 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { projectFutureMSIDebt, calculateMSIForMonth } from '../utils/msi';
-import { CalendarSync, DollarSign, CheckCircle2, Circle, HelpCircle } from 'lucide-react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { toggleMSIPayment } from '../services/db';
+import { CalendarSync, HelpCircle } from 'lucide-react';
 import { startTour } from '../utils/tourConfig';
 
 export default function MSIDebt() {

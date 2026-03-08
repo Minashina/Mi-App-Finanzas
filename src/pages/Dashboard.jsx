@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { calculateMSIForMonth, calculateRemainingMSIDebt } from '../utils/msi';
-import { isSameMonth } from 'date-fns';
-import { LayoutDashboard, Wallet, Receipt, CalendarSync, Landmark, PieChart as PieIcon, CreditCard, PiggyBank, Clock3, HelpCircle } from 'lucide-react';
+import { isSameMonth, format } from 'date-fns';
+import { LayoutDashboard, Wallet, Receipt, CalendarSync, Landmark, PieChart as PieIcon, CreditCard, PiggyBank, Clock3, HelpCircle, X } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { startTour } from '../utils/tourConfig';
+import { payCreditCard } from '../services/db';
 
 const COLORS = ['#8b5cf6', '#10b981', '#f43f5e', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6', '#8ebd4e'];
 
@@ -19,8 +20,40 @@ const ACCOUNT_COLORS = {
 };
 
 export default function Dashboard() {
-  const { accounts, transactions, fixedExpenses, savings } = useFinance();
+  const { accounts, transactions, fixedExpenses, savings, refreshData } = useFinance();
   const currentMonthDate = new Date();
+
+  // Modal State
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [selectedCC, setSelectedCC] = useState(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [selectedDebitId, setSelectedDebitId] = useState('');
+  const [isPaying, setIsPaying] = useState(false);
+
+  const handleOpenPayModal = (cc) => {
+      setSelectedCC(cc);
+      setPayAmount(cc.currentStatementDebt.toString());
+      const debitAccounts = accounts.filter(a => a.type === 'debit' || a.type === 'cash');
+      if (debitAccounts.length > 0) setSelectedDebitId(debitAccounts[0].id);
+      setShowPayModal(true);
+  };
+  
+  const handlePayCreditCard = async (e) => {
+      e.preventDefault();
+      if (!selectedDebitId || !payAmount) return;
+      setIsPaying(true);
+      try {
+          await payCreditCard(selectedCC.id, selectedDebitId, Number(payAmount), format(currentMonthDate, 'MMM yyyy'));
+          setShowPayModal(false);
+          setSelectedCC(null);
+          refreshData();
+      } catch (err) {
+          console.error(err);
+          alert('Error al procesar pago');
+      } finally {
+          setIsPaying(false);
+      }
+  };
 
   // 1. Filtrar Transacciones del Mes
   const thisMonthTxs = useMemo(() => {
@@ -67,8 +100,7 @@ export default function Dashboard() {
   }, [transactions]);
   
   const currentMsiExpense = calculateMSIForMonth(msiTxs, currentMonthDate);
-  const unpaidMsiExpense = calculateMSIForMonth(msiTxs, currentMonthDate, true, false);
-  const paidMsiExpense = calculateMSIForMonth(msiTxs, currentMonthDate, false, true);
+  const unpaidMsiExpense = currentMsiExpense;
   
   const totalMSIDebtActive = msiTxs.reduce((sum, tx) => sum + calculateRemainingMSIDebt(tx), 0);
 
@@ -92,9 +124,7 @@ export default function Dashboard() {
     .filter(a => a.type === 'debit' || a.type === 'cash')
     .reduce((sum, a) => sum + (a.balance || 0), 0);
 
-  // El saldo real ahora SOLO resta las cuotas de MSI que el usuario indicó explícitamente haber pagado.
-  // Los gastos regulares de TC NO se restan aquí, ya que el usuario los pagará manualmente registrando un egreso a la TDC.
-  const realAvailableBalance = totalCashAndDebit - paidMsiExpense;
+  const realAvailableBalance = totalCashAndDebit - totalToPayThisMonth;
 
   // KPI 5: Total Ahorrado
   const totalSaved = savings.reduce((sum, s) => sum + s.savedAmount, 0);
@@ -147,13 +177,12 @@ export default function Dashboard() {
     }).reduce((sum, tx) => sum + tx.amount, 0);
 
     // Sumar MSI impagos aplicables a este mes
-    const statementMSI = calculateMSIForMonth(ccTxs.filter(tx => tx.isMSI), currentMonthDate, true, false);
+    const statementMSI = calculateMSIForMonth(ccTxs.filter(tx => tx.isMSI), currentMonthDate);
     
-    // (Opcional) Restar abonos recibidos dentro de este mismo corte.
-    // Para no complicarlo, asumiendo "A pagar este corte" como un snapshot. 
-    // Si queremos ser exactos a la vida real, los pagos restan el 'statement'. 
-    // Usaremos el monto crudo facturado por simplicidad según el diseño solicitado.
-    const currentStatementDebt = statementExpenses + statementMSI;
+    // Restar abonos recibidos dentro de este mismo corte.
+    const currentMonthPayments = ccTxs.filter(tx => tx.type === 'income' && isSameMonth(tx.date.toDate ? tx.date.toDate() : new Date(tx.date), currentMonthDate)).reduce((sum, tx) => sum + tx.amount, 0);
+
+    const currentStatementDebt = Math.max(0, statementExpenses + statementMSI - currentMonthPayments);
 
     return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent, currentStatementDebt };
   });
@@ -407,9 +436,21 @@ export default function Dashboard() {
                         <span className="font-bold text-lg">${cc.totalDebt.toLocaleString()}</span>
                     </div>
 
-                    <div className="mb-4 flex justify-between items-center text-sm bg-danger/10 p-2.5 rounded-xl border border-danger/20">
-                        <span className="text-danger font-bold text-xs uppercase tracking-wide">A Pagar este Corte</span>
-                        <span className="font-black text-xl text-danger">${cc.currentStatementDebt.toLocaleString()}</span>
+                    <div className="mb-4 flex flex-col md:flex-row gap-4 justify-between items-center text-sm bg-danger/10 p-4 rounded-xl border border-danger/20">
+                        <div>
+                            <span className="text-danger font-bold text-xs uppercase tracking-wide block mb-1">A Pagar este Corte</span>
+                            <span className="font-black text-2xl text-danger">${cc.currentStatementDebt.toLocaleString()}</span>
+                        </div>
+                        {cc.currentStatementDebt > 0 ? (
+                            <button 
+                                onClick={() => handleOpenPayModal(cc)}
+                                className="bg-danger hover:bg-red-700 text-white font-bold py-2 px-6 rounded-xl transition-all shadow-lg hover:scale-105 w-full md:w-auto"
+                            >
+                                Pagar Tarjeta
+                            </button>
+                        ) : (
+                             <span className="bg-success text-white font-bold py-2 px-6 rounded-xl md:w-auto w-full text-center">¡Pagada!</span>
+                        )}
                     </div>
                     
                     <div className="w-full bg-black/40 rounded-full h-3 overflow-hidden mb-2 relative">
@@ -435,6 +476,64 @@ export default function Dashboard() {
             </div>
         </div>
       </div>
+
+      {/* Modal Pagar Tarjeta */}
+      {showPayModal && selectedCC && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowPayModal(false)}></div>
+          <div className="bg-surface relative z-10 w-full max-w-md p-8 rounded-3xl border border-white/10 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold flex items-center gap-2">
+                <CreditCard className="text-primary" /> Pagar Tarjeta
+              </h3>
+              <button onClick={() => setShowPayModal(false)} className="text-text-muted hover:text-white p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <p className="text-sm text-text-muted mb-6">
+              Estás a punto de pagar el corte de tu <strong className="text-white">{selectedCC.name}</strong>. Esta acción reducirá tu saldo de débito y el adeudo de esta tarjeta simultáneamente.
+            </p>
+
+            <form onSubmit={handlePayCreditCard} className="flex flex-col gap-5">
+              <label className="flex flex-col gap-2 font-medium">
+                Pagar desde (Débito/Efectivo)
+                <select 
+                  required
+                  className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                  value={selectedDebitId} 
+                  onChange={e => setSelectedDebitId(e.target.value)}
+                >
+                  <option value="" disabled>Selecciona cuenta origen...</option>
+                  {accounts.filter(a => a.type === 'debit' || a.type === 'cash').map(acc => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name} (${acc.balance?.toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-2 font-medium">
+                Monto a Pagar ($)
+                <input 
+                  required type="number" step="0.01" min="0.01"
+                  className="bg-background border border-white/10 p-3 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-xl font-bold text-success"
+                  value={payAmount} 
+                  onChange={e => setPayAmount(e.target.value)} 
+                />
+              </label>
+
+              <button 
+                disabled={isPaying}
+                className="mt-4 w-full bg-gradient-to-r from-success to-emerald-600 text-white py-4 rounded-xl font-bold text-lg hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all disabled:opacity-50"
+              >
+                {isPaying ? 'Procesando...' : 'Confirmar Pago'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

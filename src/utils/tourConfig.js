@@ -84,6 +84,13 @@ const tours = {
                 side: "bottom",
                 align: 'start'
             }
+        },
+        {
+            popover: {
+                title: 'Pagar Tarjeta Directamente',
+                description: 'En la sección "Uso de Crédito Real" más abajo, verás botones rojos de "Pagar Tarjeta". Al usarlos, transferirás dinero de tu débito a la tarjeta para reducir la deuda de inmediato. Ya no necesitas marcar las compras a MSI individualmente.',
+                align: 'center'
+            }
         }
     ],
     
@@ -230,25 +237,7 @@ const tours = {
         {
             popover: {
                 title: 'Proyección de Deuda Futura',
-                description: 'Visualiza en una gráfica cómo irán terminando tus compromisos o deudas a la fecha de hoy si dejas de adquirir más problemas de meses sin intereses.',
-                align: 'center'
-            }
-        },
-        {
-            element: '#tour-msi-table',
-            popover: {
-                title: 'Mis Compras Vigentes',
-                description: 'Una tabla maestra donde verás desglozados los plazos (3, 6, 12) y tu control manual de abonos.',
-                side: "top",
-                align: 'start'
-            }
-        },
-        {
-            element: '#tour-msi-pay',
-            popover: {
-                title: 'Indicando el Pago Mensual',
-                description: 'A pesar de que liquidas la tarjeta en global desde la vista principal abonándole a la TDC, aquí puedes "marcar como pagado individualmente" un folio si así deseas un control microscópico.',
-                side: "left",
+                description: 'Visualiza en esta gráfica cómo irán terminando tus compromisos a meses sin intereses si dejas de adquirir más.',
                 align: 'center'
             }
         }

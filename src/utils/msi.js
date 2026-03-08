@@ -1,33 +1,19 @@
 import { isWithinInterval, parseISO, startOfMonth, endOfMonth, addMonths, differenceInMonths, differenceInCalendarMonths, isBefore, isAfter, format } from 'date-fns';
 
-/**
- * Calcula la mensualidad de los MSI correspondientes al mes indicado (por defecto mes actual)
- * @param {Array} transactions 
- * @param {Date} targetMonth 
- * @param {Boolean} onlyUnpaid Si es true, excluye los meses que ya están pagados
- * @param {Boolean} onlyPaid Si es true, solo incluye los meses pagados
- * @returns {Number} Total a sumar para el mes por gastos MSI
- */
-export const calculateMSIForMonth = (transactions, targetMonth = new Date(), onlyUnpaid = false, onlyPaid = false) => {
+export const calculateMSIForMonth = (transactions, targetMonth = new Date()) => {
   const targetStart = startOfMonth(targetMonth);
   const targetEnd = endOfMonth(targetMonth);
-  const targetMonthStr = format(targetMonth, 'yyyy-MM');
   
   let totalMsiForMonth = 0;
 
   transactions.forEach(tx => {
     if (tx.isMSI && tx.msiData) {
-      const { startMonth, endMonth, monthlyAmount, paidMonths = [] } = tx.msiData;
-      // startMonth y endMonth vienen en formato "YYYY-MM"
+      const { startMonth, endMonth, monthlyAmount } = tx.msiData;
       const start = startOfMonth(parseISO(`${startMonth}-01`));
       const end = endOfMonth(parseISO(`${endMonth}-01`));
 
       // Si el mes objetivo está dentro del periodo de cobro, sumamos la mensualidad
       if (!isBefore(targetStart, start) && !isAfter(targetEnd, end)) {
-        const isPaid = paidMonths.includes(targetMonthStr);
-        if (onlyUnpaid && isPaid) return;
-        if (onlyPaid && !isPaid) return;
-
         totalMsiForMonth += monthlyAmount;
       }
     }
@@ -119,12 +105,6 @@ export const calculateRemainingMSIDebt = (tx) => {
   // Si mesesIzq es negativo, devuelve 0 (ya validado por el if() de arriba, pero por seguridad)
   if (monthsLeft <= 0) return 0;
 
-  // Ajuste fino: restar los meses que el usuario explícitamente marcó como pagados
-  // pero que podrían no haber sido descontados solo por fecha
-  const paidMonthsCount = (tx.msiData.paidMonths || []).length;
-  // Es mejor simplemente tomar "meses totales - meses pagados" si el usuario usa trackeo manual
-  const remainingByPaid = tx.msiData.totalMonths - paidMonthsCount;
-  
-  // Usamos el trackeo manual como más confiable, pero sin exceder lo marcado por tiempo.
-  return Math.min(monthsLeft, remainingByPaid) * tx.msiData.monthlyAmount;
+  // El adeudo siempre es el de los meses restantes por la mensualidad globalmente hablando
+  return monthsLeft * tx.msiData.monthlyAmount;
 };
