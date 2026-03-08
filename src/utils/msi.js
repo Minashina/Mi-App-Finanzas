@@ -42,9 +42,9 @@ export const calculateMSIForMonth = (transactions, targetMonth = new Date(), onl
  * @param {Number} monthsToProject 
  * @returns {Array} Array con objetos de proyección por mes 
  */
-export const projectFutureMSIDebt = (transactions, monthsToProject = 12, startDate = new Date()) => {
+export const projectFutureMSIDebt = (transactions, monthsToProject = 12) => {
   const projection = [];
-  const currentMonth = startOfMonth(startDate);
+  let currentMonth = new Date();
 
   for (let i = 0; i < monthsToProject; i++) {
     const targetMonth = addMonths(currentMonth, i);

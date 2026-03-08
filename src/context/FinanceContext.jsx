@@ -12,7 +12,6 @@ export const FinanceProvider = ({ children }) => {
   const [savings, setSavings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [globalMonth, setGlobalMonth] = useState(new Date());
 
   const fetchData = async () => {
     try {
@@ -51,9 +50,7 @@ export const FinanceProvider = ({ children }) => {
     savings,
     loading,
     error,
-    refreshData,
-    globalMonth,
-    setGlobalMonth
+    refreshData
   };
 
   return (

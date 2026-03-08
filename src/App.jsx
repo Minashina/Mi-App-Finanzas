@@ -14,7 +14,6 @@ import History from './pages/History';
 import FixedExpenses from './pages/FixedExpenses';
 import Savings from './pages/Savings';
 import { List, CalendarClock as ClockIcon, PiggyBank } from 'lucide-react'; // Iconos extra
-import MonthSelector from './components/MonthSelector';
 
 const SidebarItem = ({ to, icon: Icon, label, onClick }) => {
   const location = useLocation();
@@ -144,7 +143,6 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 md:ml-64 min-h-screen pt-20 md:pt-0 pb-10 w-full overflow-x-hidden relative">
-        <MonthSelector />
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/accounts" element={<Accounts />} />

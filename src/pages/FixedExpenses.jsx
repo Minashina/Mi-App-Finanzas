@@ -5,7 +5,7 @@ import { CalendarClock, PlusCircle, Trash2, Home, Wifi, Zap, Droplets, CheckCirc
 import { isSameMonth } from 'date-fns';
 
 export default function FixedExpenses() {
-  const { fixedExpenses, accounts, transactions, refreshData, globalMonth: currentMonthDate } = useFinance();
+  const { fixedExpenses, accounts, transactions, refreshData } = useFinance();
   const [loading, setLoading] = useState(false);
   const [payLoadingId, setPayLoadingId] = useState(null);
   
@@ -78,6 +78,8 @@ export default function FixedExpenses() {
     }
   };
 
+  const currentMonthDate = new Date();
+
   const handlePayExpense = async (e, exp) => {
       e.preventDefault();
       if (!payData.accountId) {
@@ -103,16 +105,12 @@ export default function FixedExpenses() {
               }
           }
 
-          const txDate = isSameMonth(currentMonthDate, new Date())
-             ? new Date()
-             : new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), 15, 12);
-
           const tx = {
               accountId: payData.accountId,
               type: 'expense',
               amount: payAmount,
               category: exp.category,
-              date: txDate,
+              date: new Date(),
               description: `Pago Fijo: ${exp.name}`,
               isMSI: false,
               msiData: null,

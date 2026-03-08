@@ -7,7 +7,8 @@ import { es } from 'date-fns/locale';
 import { toggleMSIPayment } from '../services/db';
 
 export default function MSIDebt() {
-  const { transactions, accounts, refreshData, globalMonth: currentMonthDate } = useFinance();
+  const { transactions, accounts, refreshData } = useFinance();
+  const currentMonthDate = new Date();
   const currentMonthStr = format(currentMonthDate, 'yyyy-MM');
   const [loadingToggle, setLoadingToggle] = useState(null);
   const [payingMsiId, setPayingMsiId] = useState(null);
@@ -21,8 +22,8 @@ export default function MSIDebt() {
   }, [transactions]);
 
   const projection = useMemo(() => {
-    return projectFutureMSIDebt(msiTransactions, 12, currentMonthDate);
-  }, [msiTransactions, currentMonthDate]);
+    return projectFutureMSIDebt(msiTransactions, 12);
+  }, [msiTransactions]);
 
   const totalMSIDebtActive = msiTransactions.reduce((acc, tx) => acc + (tx.amount), 0);
   
@@ -61,7 +62,7 @@ export default function MSIDebt() {
             <div key={i} className="flex flex-col md:flex-row items-center gap-4 group">
               <div className="md:w-32 text-center md:text-left">
                 <p className="font-bold text-lg capitalize">{format(monthData.date, 'MMMM yyyy', { locale: es })}</p>
-                {i === 0 && <span className="text-xs text-primary px-2 py-1 bg-primary/20 rounded-md">Mes Sel.</span>}
+                {i === 0 && <span className="text-xs text-primary px-2 py-1 bg-primary/20 rounded-md">Mes Actual</span>}
               </div>
 
               <div className="flex-1 w-full bg-black/30 rounded-full h-8 overflow-hidden relative border border-white/5">
