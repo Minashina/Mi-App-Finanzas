@@ -61,17 +61,27 @@ export const projectFutureMSIDebt = (transactions, monthsToProject = 12) => {
 /**
  * Helper: Calcula el mes de inicio y fin dado un número de meses, basado en la fecha de la transacción
  */
-export const calculateMSIPeriod = (transactionDate, months) => {
-  // Ej: Si la compra es el 15 de Nov 2023 a 3 meses.
-  // El primer cobro podría ser en el mismo mes o en el siguiente dependiendo de la fecha de corte,
-  // Para simplificar, asumiremos que empieza el mes de la compra (o el mes siguiente si así se configura).
-  // Aquí usamos el mes actual de la compra como inicio.
+export const calculateMSIPeriod = (transactionDate, months, cutoffDay = null) => {
+  // Aseguramos que transactionDate sea un Date válido local
+  let start = startOfMonth(transactionDate);
   
-  const start = startOfMonth(transactionDate);
-  const end = addMonths(start, months - 1); // Si es a 3 meses, incluye mes 0, 1 y 2
+  if (cutoffDay) {
+      const txDay = transactionDate.getDate();
+      // Si el día de la transacción es igual o mayor al día de corte, 
+      // el cobro pasa para el siguiente periodo (siguiente mes).
+      if (txDay >= cutoffDay) {
+          start = startOfMonth(addMonths(transactionDate, 1));
+      }
+  }
+  
+  const end = addMonths(start, months - 1); 
   
   // Format to YYYY-MM
-  const formatYYYYMM = (date) => date.toISOString().slice(0, 7);
+  const formatYYYYMM = (date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      return `${y}-${m}`;
+  };
   
   return {
     startMonth: formatYYYYMM(start),

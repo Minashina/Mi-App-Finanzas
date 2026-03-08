@@ -28,13 +28,34 @@ export default function Dashboard() {
     );
   }, [transactions]);
 
-  const totalRegularExpense = thisMonthTxs
-    .filter(tx => {
+  // 1b. Gastos Regulares de TC que vencen en este "corte" de mes
+  const creditCardStatementTxs = useMemo(() => {
+     return transactions.filter(tx => {
         if (tx.type !== 'expense' || tx.isMSI) return false;
         const acc = accounts.find(a => a.id === tx.accountId);
-        return acc && acc.type === 'credit';
-    })
-    .reduce((acc, tx) => acc + tx.amount, 0);
+        if (!acc || acc.type !== 'credit') return false;
+
+        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+        
+        if (acc.cutoffDay) {
+             const cutoff = Number(acc.cutoffDay);
+             const targetYear = currentMonthDate.getFullYear();
+             const targetMonth = currentMonthDate.getMonth();
+             
+             const currentStatementCutoff = new Date(targetYear, targetMonth, cutoff);
+             currentStatementCutoff.setHours(23, 59, 59, 999);
+             
+             const previousStatementCutoff = new Date(targetYear, targetMonth - 1, cutoff);
+             previousStatementCutoff.setHours(23, 59, 59, 999);
+             
+             return txDate > previousStatementCutoff && txDate <= currentStatementCutoff;
+        } else {
+             return isSameMonth(txDate, currentMonthDate);
+        }
+     });
+  }, [transactions, accounts, currentMonthDate]);
+
+  const totalRegularExpense = creditCardStatementTxs.reduce((acc, tx) => acc + tx.amount, 0);
 
   // 2. MSI Activos
   const msiTxs = useMemo(() => {
@@ -110,12 +131,22 @@ export default function Dashboard() {
 
   // Datos para Recharts (Dashboard Visual)
   const expensesByCategory = useMemo(() => {
-    const expenses = thisMonthTxs.filter(tx => tx.type === 'expense' && !tx.isMSI);
-    
-    const categoryMap = expenses.reduce((acc, tx) => {
-        acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
-        return acc;
-    }, {});
+    // Gastos de Débito/Efectivo de este mes calendario
+    const debitCashExpenses = thisMonthTxs.filter(tx => {
+        if (tx.type !== 'expense' || tx.isMSI) return false;
+        const acc = accounts.find(a => a.id === tx.accountId);
+        return acc && (acc.type === 'debit' || acc.type === 'cash');
+    });
+
+    const categoryMap = {};
+
+    debitCashExpenses.forEach(tx => {
+        categoryMap[tx.category] = (categoryMap[tx.category] || 0) + tx.amount;
+    });
+
+    creditCardStatementTxs.forEach(tx => {
+        categoryMap[tx.category] = (categoryMap[tx.category] || 0) + tx.amount;
+    });
 
     msiTxs.forEach(tx => {
         const msiForThisTxThisMonth = calculateMSIForMonth([tx], currentMonthDate);
@@ -132,7 +163,7 @@ export default function Dashboard() {
     return Object.entries(categoryMap)
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value); 
-  }, [thisMonthTxs, msiTxs, fixedExpenses]);
+  }, [thisMonthTxs, creditCardStatementTxs, msiTxs, fixedExpenses, accounts, currentMonthDate]);
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">

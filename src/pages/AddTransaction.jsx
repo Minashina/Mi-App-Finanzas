@@ -109,19 +109,25 @@ export default function AddTransaction() {
         type: formData.type,
         amount: amount,
         category: formData.category,
-        date: new Date(formData.date),
+        date: new Date(formData.date + 'T12:00:00'), // Asegurar que caiga en el día local correcto
         description: formData.description,
         isMSI: isMSIValid
       };
 
       if (isMSIValid) {
-        const { startMonth, endMonth } = calculateMSIPeriod(tx.date, msiMonths);
+        const cutoffDay = selectedAccount?.cutoffDay ? Number(selectedAccount.cutoffDay) : null;
+        const { startMonth, endMonth } = calculateMSIPeriod(tx.date, msiMonths, cutoffDay);
+        
+        // Ajustamos exacto al inicio del mes
+        const [sy, sm] = startMonth.split('-');
+        const adjustedStartDate = new Date(parseInt(sy), parseInt(sm) - 1, 1);
+        
         tx.msiData = {
           totalMonths: msiMonths,
           monthlyAmount: amount / msiMonths,
           startMonth,
           endMonth,
-          endDate: new Date(new Date(tx.date).setMonth(new Date(tx.date).getMonth() + msiMonths)) // <--- Nueva lógica avanzada V2 explícita
+          endDate: new Date(adjustedStartDate.setMonth(adjustedStartDate.getMonth() + msiMonths)) 
         };
       } else {
         tx.msiData = null;
