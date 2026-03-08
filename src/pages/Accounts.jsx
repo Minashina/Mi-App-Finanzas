@@ -262,7 +262,7 @@ export default function Accounts() {
                     <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                       <div>
                         <p className="text-text-muted">Límite</p>
-                        <p className="font-semibold text-lg text-primary">${acc.creditLimit?.toLocaleString()}</p>
+                        <p className="font-semibold text-lg text-primary">${acc.creditLimit?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                       </div>
                       <div>
                         <p className="text-text-muted">Corte/Pago</p>
@@ -272,7 +272,7 @@ export default function Accounts() {
                   ) : (
                     <div>
                       <p className="text-text-muted text-sm">Saldo Actual</p>
-                      <p className="font-bold text-2xl text-success">${acc.balance?.toLocaleString()}</p>
+                      <p className="font-bold text-2xl text-success">${acc.balance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                     </div>
                   )}
 
@@ -297,10 +297,10 @@ export default function Accounts() {
                               <div className="flex justify-between items-start text-sm mb-2">
                                 <div className="flex flex-col pr-2 overflow-hidden">
                                   <span className="font-bold truncate" title={tx.description || tx.category}>{tx.description || tx.category}</span>
-                                  <span className="text-xs text-text-muted">Deuda Original: ${tx.amount.toLocaleString()}</span>
+                                  <span className="text-xs text-text-muted">Deuda Original: ${tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                                 <div className="text-right flex-shrink-0">
-                                  <span className="font-black text-primary">${remainingDebt.toLocaleString()}</span>
+                                  <span className="font-black text-primary">${remainingDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                   <span className="block text-[10px] text-text-muted uppercase tracking-wider">Restante</span>
                                 </div>
                               </div>

@@ -91,7 +91,7 @@ export default function History() {
                       </td>
 
                       <td className={`px-6 py-4 text-right font-black text-lg whitespace-nowrap ${isExpense ? 'text-white' : 'text-success'}`}>
-                        {isExpense ? '-' : '+'}${tx.amount.toLocaleString()}
+                        {isExpense ? '-' : '+'}${tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
 
                       <td className="px-6 py-4 text-center">

@@ -250,7 +250,7 @@ export default function Dashboard() {
             <div className="absolute right-4 top-4 opacity-20"><Landmark size={48} /></div>
             <div>
                 <p className="text-white/80 mb-1 text-xs font-bold uppercase tracking-widest">Saldo Disponible Real</p>
-                <p className="text-4xl font-black">${realAvailableBalance.toLocaleString()}</p>
+                <p className="text-4xl font-black">${realAvailableBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
             <p className="text-xs text-white/60 mt-4 leading-tight">
                 Dinero libre en débito/efectivo, restando tus deudas en TDC del mes. (No resta gastos fijos aún no pagados).
@@ -262,12 +262,12 @@ export default function Dashboard() {
             <div className="absolute right-4 top-4 opacity-10 group-hover:opacity-20 transition-opacity text-danger"><Receipt size={48} /></div>
             <div>
                 <p className="text-text-muted mb-1 text-xs font-bold uppercase tracking-widest">A Pagar este Mes</p>
-                <p className="text-3xl font-black text-danger">${totalToPayThisMonth.toLocaleString()}</p>
+                <p className="text-3xl font-black text-danger">${totalToPayThisMonth.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
             <div className="mt-4 text-xs font-medium text-text-muted space-y-1">
-                <div className="flex justify-between"><span>Gastos Fijos:</span> <span>${unpaidFixedExpenses.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span>MSI (Pdts):</span> <span>${unpaidMsiExpense.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span>TC (Directos):</span> <span>${totalRegularExpense.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span>Gastos Fijos:</span> <span>${unpaidFixedExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between"><span>MSI (Pdts):</span> <span>${unpaidMsiExpense.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between"><span>TC (Directos):</span> <span>${totalRegularExpense.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
             </div>
         </div>
 
@@ -276,7 +276,7 @@ export default function Dashboard() {
             <div className="absolute right-4 top-4 opacity-5"><CreditCard size={48} /></div>
             <div>
                 <p className="text-text-muted mb-1 text-xs font-bold uppercase tracking-widest">Deuda Actual Total</p>
-                <p className="text-3xl font-black text-white">${totalCreditDebt.toLocaleString()}</p>
+                <p className="text-3xl font-black text-white">${totalCreditDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
             <p className="text-xs text-text-muted mt-4 leading-tight">
                 Sumatoria de deudas activas en todas tus tarjetas de crédito institucionales.
@@ -288,7 +288,7 @@ export default function Dashboard() {
             <div className="absolute right-4 top-4 opacity-5"><CalendarSync size={48} /></div>
             <div>
                 <p className="text-text-muted mb-1 text-xs font-bold uppercase tracking-widest">Deuda MSI Activa</p>
-                <p className="text-3xl font-black text-primary-light">${totalMSIDebtActive.toLocaleString()}</p>
+                <p className="text-3xl font-black text-primary-light">${totalMSIDebtActive.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
             <p className="text-xs text-text-muted mt-4 leading-tight">
                 Saldo total comprometido a meses sin intereses a futuro.
@@ -300,7 +300,7 @@ export default function Dashboard() {
             <div className="absolute right-4 top-4 opacity-5"><PiggyBank size={48} /></div>
             <div>
                 <p className="text-text-muted mb-1 text-xs font-bold uppercase tracking-widest">Total Ahorrado</p>
-                <p className="text-3xl font-black text-success">${totalSaved.toLocaleString()}</p>
+                <p className="text-3xl font-black text-success">${totalSaved.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
             <p className="text-xs text-text-muted mt-4 leading-tight">
                 Capital total protegido en tus metas de ahorro.
@@ -335,7 +335,7 @@ export default function Dashboard() {
                                 ))}
                             </Pie>
                             <Tooltip 
-                                formatter={(value) => `$${Number(value).toLocaleString()}`}
+                                formatter={(value) => `$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                 contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }}
                                 itemStyle={{ color: '#fff', fontWeight: 'bold' }}
                             />
@@ -362,7 +362,7 @@ export default function Dashboard() {
                     return (
                         <div key={acc.id} className={`p-4 rounded-2xl flex justify-between items-center border ${activeColorClass}`}>
                             <span className="font-semibold">{acc.name}</span>
-                            <span className="font-black text-success">${acc.balance?.toLocaleString()}</span>
+                            <span className="font-black text-success">${acc.balance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                     );
                 })}
@@ -404,7 +404,7 @@ export default function Dashboard() {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="font-black text-white text-xl">-${tx.amount.toLocaleString()}</p>
+                                        <p className="font-black text-white text-xl">-${tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                                     </div>
                                 </div>
                             )
@@ -433,13 +433,13 @@ export default function Dashboard() {
                     
                     <div className="mb-2 flex justify-between text-sm">
                         <span className="text-text-muted font-medium">Deuda Total Activa</span>
-                        <span className="font-bold text-lg">${cc.totalDebt.toLocaleString()}</span>
+                        <span className="font-bold text-lg">${cc.totalDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
 
                     <div className="mb-4 flex flex-col md:flex-row gap-4 justify-between items-center text-sm bg-danger/10 p-4 rounded-xl border border-danger/20">
                         <div>
                             <span className="text-danger font-bold text-xs uppercase tracking-wide block mb-1">A Pagar este Corte</span>
-                            <span className="font-black text-2xl text-danger">${cc.currentStatementDebt.toLocaleString()}</span>
+                            <span className="font-black text-2xl text-danger">${cc.currentStatementDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                         {cc.currentStatementDebt > 0 ? (
                             <button 
@@ -461,8 +461,8 @@ export default function Dashboard() {
                     </div>
 
                     <div className="flex justify-between text-xs text-text-muted font-medium">
-                        <span>Disp: <strong className="text-white">${cc.availableCredit.toLocaleString()}</strong></span>
-                        <span>Límite: ${cc.creditLimit.toLocaleString()} ({cc.usagePercent.toFixed(1)}%)</span>
+                        <span>Disp: <strong className="text-white">${cc.availableCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+                        <span>Límite: ${cc.creditLimit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({cc.usagePercent.toFixed(1)}%)</span>
                     </div>
                 </div>
                     );
@@ -507,7 +507,7 @@ export default function Dashboard() {
                   <option value="" disabled>Selecciona cuenta origen...</option>
                   {accounts.filter(a => a.type === 'debit' || a.type === 'cash').map(acc => (
                     <option key={acc.id} value={acc.id}>
-                      {acc.name} (${acc.balance?.toLocaleString()})
+                      {acc.name} (${acc.balance?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                     </option>
                   ))}
                 </select>

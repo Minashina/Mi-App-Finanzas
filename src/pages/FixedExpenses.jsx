@@ -160,7 +160,7 @@ export default function FixedExpenses() {
           </div>
           <div className="bg-surface border border-white/10 px-6 py-3 rounded-2xl shadow-lg">
               <p className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">Total Fijo Mensual</p>
-              <p className="text-2xl font-black text-danger">${totalFixed.toLocaleString()}</p>
+              <p className="text-2xl font-black text-danger">${totalFixed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
       </div>
 
@@ -251,9 +251,9 @@ export default function FixedExpenses() {
                                     </div>
                                     <div className="flex items-center gap-4">
                                         <div className="text-right">
-                                            <span className={`font-black text-xl ${isFullyPaidThisMonth ? 'text-success' : ''}`}>${exp.amount.toLocaleString()}</span>
+                                            <span className={`font-black text-xl ${isFullyPaidThisMonth ? 'text-success' : ''}`}>${exp.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                             {isFullyPaidThisMonth && <p className="text-[10px] text-success font-bold uppercase">Pagado</p>}
-                                            {isPartiallyPaid && <p className="text-[10px] text-primary font-bold uppercase">Abonado: ${amountPaidThisMonth.toLocaleString()}</p>}
+                                            {isPartiallyPaid && <p className="text-[10px] text-primary font-bold uppercase">Abonado: ${amountPaidThisMonth.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
                                         </div>
                                         <button 
                                             onClick={() => handleDelete(exp.id)} 

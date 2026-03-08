@@ -40,7 +40,7 @@ export default function MSIDebt() {
         </div>
         <div className="text-right">
           <p className="text-sm text-text-muted uppercase tracking-wider font-semibold">Total MSI Comprometido</p>
-          <p className="text-2xl font-black text-danger">${totalMSIDebtActive.toLocaleString()}</p>
+          <p className="text-2xl font-black text-danger">${totalMSIDebtActive.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
       </div>
 

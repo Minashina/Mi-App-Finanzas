@@ -209,7 +209,7 @@ export default function Savings() {
           <div className="bg-surface border border-white/10 px-6 py-3 rounded-2xl flex items-center gap-4 shadow-lg w-full md:w-auto">
              <div className="flex-1">
                 <p className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">Total Ahorrado</p>
-                <p className="text-2xl md:text-3xl font-black text-white">${totalSavedAll.toLocaleString()}</p>
+                <p className="text-2xl md:text-3xl font-black text-white">${totalSavedAll.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
              </div>
              <div className="bg-primary/20 p-3 rounded-xl">
                  <Target className="text-primary-light" size={24} />
@@ -347,7 +347,7 @@ export default function Savings() {
                                         {isCompleted && <span className="text-xs bg-success/20 text-success px-2 py-1 rounded-full uppercase tracking-widest">¡Logrado!</span>}
                                         {isFree && <span className="text-[10px] bg-primary/20 text-primary-light px-2 py-1 rounded-full uppercase tracking-wider flex items-center gap-1"><InfinityIcon size={12}/> Libre</span>}
                                     </h3>
-                                    {!isFree && <p className="text-text-muted text-sm font-medium">Meta: ${goal.targetAmount?.toLocaleString()}</p>}
+                                    {!isFree && <p className="text-text-muted text-sm font-medium">Meta: ${goal.targetAmount?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
                                 </div>
                                 <div className="text-left w-full md:w-auto md:text-right flex flex-col items-start md:items-end">
                                     <div className="flex items-center justify-between w-full md:justify-end gap-4 mb-1">
@@ -355,7 +355,7 @@ export default function Savings() {
                                         <button onClick={() => handleDeleteGoal(goal.id, goal.name, goal.savedAmount)} className="text-text-muted hover:text-danger transition-colors p-1 -mr-1" title="Eliminar"><Trash2 size={16}/></button>
                                     </div>
                                     <p className={`text-3xl font-black ${isCompleted ? 'text-success' : 'text-primary-light'}`}>
-                                        ${goal.savedAmount.toLocaleString()}
+                                        ${goal.savedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </p>
                                     {goal.annualYield > 0 && goal.savedAmount > 0 && (
                                         <p className="text-xs text-success font-bold mt-1">
