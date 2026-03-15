@@ -116,24 +116,6 @@ export default function Dashboard() {
       return sum + remainingAmount;
   }, 0);
 
-  // KPI 1: Total a Pagar Este Mes
-  const totalToPayThisMonth = totalRegularExpense + unpaidMsiExpense + unpaidFixedExpenses;
-
-  // KPI 4: Saldo Disponible Real (Líquido)
-  const totalCashAndDebit = accounts
-    .filter(a => a.type === 'debit' || a.type === 'cash')
-    .reduce((sum, a) => sum + (a.balance || 0), 0);
-
-  const realAvailableBalance = totalCashAndDebit;
-
-  // KPI 5: Total Ahorrado
-  const totalSaved = savings.reduce((sum, s) => sum + s.savedAmount, 0);
-
-  // Widget: Últimos 3 (gastos)
-  const recentExpenses = useMemo(() => {
-    return transactions.filter(tx => tx.type === 'expense').slice(0, 3);
-  }, [transactions]);
-
   // 5. Status de Crédito & KPI 2 (Deuda Actual Total TC)
   const creditCards = accounts.filter(a => a.type === 'credit');
   let totalCreditDebt = 0;
@@ -186,6 +168,29 @@ export default function Dashboard() {
 
     return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent, currentStatementDebt };
   });
+
+  // SUMAR EL STATEMENT DEBT DE TODAS LAS TARJETAS PARA EL CÁLCULO
+  const totalCreditStatementDebt = creditUsage.reduce((sum, cc) => sum + cc.currentStatementDebt, 0);
+
+  // KPI 1: Total a Pagar Este Mes
+  const totalToPayThisMonth = totalCreditStatementDebt + unpaidFixedExpenses;
+
+  // KPI 4: Saldo Disponible Real (Líquido)
+  const totalCashAndDebit = accounts
+    .filter(a => a.type === 'debit' || a.type === 'cash')
+    .reduce((sum, a) => sum + (a.balance || 0), 0);
+
+  const realAvailableBalance = totalCashAndDebit;
+
+  // KPI 5 & Fondo de Emergencia
+  const emergencyFunds = savings.filter(s => s.isEmergencyFund);
+  const totalEmergencyFund = emergencyFunds.reduce((sum, s) => sum + s.savedAmount, 0);
+  const totalSaved = savings.filter(s => !s.isEmergencyFund).reduce((sum, s) => sum + s.savedAmount, 0);
+
+  // Widget: Últimos 3 (gastos)
+  const recentExpenses = useMemo(() => {
+    return transactions.filter(tx => tx.type === 'expense').slice(0, 3);
+  }, [transactions]);
 
   // Datos para Recharts (Dashboard Visual)
   const expensesByCategory = useMemo(() => {
@@ -242,8 +247,8 @@ export default function Dashboard() {
           </div>
       </div>
 
-      {/* 5 KPIs Financieros (Top Level) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+      {/* 6 KPIs Financieros (Top Level) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
         
         {/* KPI: Saldo Disponible Real */}
         <div id="tour-balance" className="bg-gradient-to-br from-primary to-purple-800 p-6 rounded-3xl shadow-lg relative overflow-hidden text-white flex flex-col justify-between">
@@ -253,7 +258,7 @@ export default function Dashboard() {
                 <p className="text-4xl font-black">${realAvailableBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
             <p className="text-xs text-white/60 mt-4 leading-tight">
-                Dinero libre en débito/efectivo, restando tus deudas en TDC del mes. (No resta gastos fijos aún no pagados).
+                Dinero libre en débito/efectivo.
             </p>
         </div>
 
@@ -266,9 +271,20 @@ export default function Dashboard() {
             </div>
             <div className="mt-4 text-xs font-medium text-text-muted space-y-1">
                 <div className="flex justify-between"><span>Gastos Fijos:</span> <span>${unpaidFixedExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                <div className="flex justify-between"><span>MSI (Pdts):</span> <span>${unpaidMsiExpense.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                <div className="flex justify-between"><span>TC (Directos):</span> <span>${totalRegularExpense.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                <div className="flex justify-between"><span>Tarjetas de Crédito:</span> <span>${totalCreditStatementDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
             </div>
+        </div>
+
+        {/* KPI: Fondo de Emergencia */}
+        <div className="bg-gradient-to-br from-blue-900 to-indigo-900 p-6 rounded-3xl shadow-lg relative overflow-hidden text-white flex flex-col justify-between">
+            <div className="absolute right-4 top-4 opacity-20"><Wallet size={48} /></div>
+            <div>
+                <p className="text-white/80 mb-1 text-xs font-bold uppercase tracking-widest">Fondo de Emergencia</p>
+                <p className="text-4xl font-black text-blue-300">${totalEmergencyFund.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </div>
+            <p className="text-xs text-white/60 mt-4 leading-tight">
+                Tu colchón financiero (ideal: 3 meses de sueldo).
+            </p>
         </div>
 
         {/* KPI: Deuda TC */}
@@ -279,7 +295,7 @@ export default function Dashboard() {
                 <p className="text-3xl font-black text-white">${totalCreditDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
             <p className="text-xs text-text-muted mt-4 leading-tight">
-                Sumatoria de deudas activas en todas tus tarjetas de crédito institucionales.
+                Sumatoria de deudas activas en todas tus tarjetas de crédito.
             </p>
         </div>
 
@@ -303,7 +319,7 @@ export default function Dashboard() {
                 <p className="text-3xl font-black text-success">${totalSaved.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
             <p className="text-xs text-text-muted mt-4 leading-tight">
-                Capital total protegido en tus metas de ahorro.
+                Capital total protegido en tus metas (excl. colchón).
             </p>
         </div>
 

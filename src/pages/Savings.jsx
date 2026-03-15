@@ -187,7 +187,35 @@ export default function Savings() {
       return (amount * (annualYield / 100)) / 365;
   };
 
-  const totalSavedAll = savings.reduce((acc, s) => acc + s.savedAmount, 0);
+  const emergencyFund = savings.find(s => s.isEmergencyFund);
+  const regularSavings = savings.filter(s => !s.isEmergencyFund);
+
+  const totalSavedAll = regularSavings.reduce((acc, s) => acc + s.savedAmount, 0);
+
+  const handleCreateEmergencyFund = async () => {
+      if (window.confirm("¿Crear tu Fondo de Emergencia? Este fondo es independiente de tus otros ahorros.")) {
+          setLoading(true);
+          try {
+              await addSavingGoal({
+                  name: 'Fondo de Emergencia',
+                  targetAmount: null,
+                  savedAmount: 0,
+                  deadline: null,
+                  frequency: 'Libre',
+                  isFreeGoal: true,
+                  isEmergencyFund: true,
+                  accountId: null,
+                  annualYield: 0
+              });
+              refreshData();
+          } catch (err) {
+              console.error(err);
+              alert("Error al crear el Fondo de Emergencia");
+          } finally {
+              setLoading(false);
+          }
+      }
+  };
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
@@ -320,17 +348,149 @@ export default function Savings() {
           )}
         </div>
 
+        {/* Fondo de Emergencia Top Level Card */}
+        <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border border-blue-500/30 rounded-3xl p-6 shadow-xl">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                <div>
+                    <h2 className="text-2xl font-bold flex items-center gap-2 text-blue-100">
+                        <Wallet className="text-blue-400" /> Colchón Financiero / Fondo de Emergencia
+                    </h2>
+                    <p className="text-sm text-blue-200/70 mt-1 max-w-xl">
+                        Este fondo es 100% independiente de tus metas de ahorro. Se recomienda tener al menos 3 meses de sueldo disponibles para cualquier imprevisto.
+                    </p>
+                </div>
+                {!emergencyFund && (
+                    <button 
+                        onClick={handleCreateEmergencyFund}
+                        disabled={loading}
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2 whitespace-nowrap"
+                    >
+                        <PlusCircle size={20} /> Crear Fondo
+                    </button>
+                )}
+            </div>
+
+            {emergencyFund && (
+                <div className="bg-black/20 rounded-2xl p-6 border border-white/5">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-4">
+                        <div>
+                            <p className="text-xs text-blue-300 uppercase tracking-wider font-bold mb-1">Total Ahorrado para Emergencias</p>
+                            <p className="text-4xl font-black text-white">
+                                ${emergencyFund.savedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => {
+                                    setFundingGoalId(emergencyFund.id);
+                                    setWithdrawingGoalId(null);
+                                }}
+                                className="bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 px-4 py-2 rounded-lg font-bold transition-all text-sm flex items-center gap-2 border border-blue-500/20"
+                            >
+                                <Plus size={16} /> Abonar
+                            </button>
+                            {emergencyFund.savedAmount > 0 && (
+                                <button 
+                                    onClick={() => {
+                                        setWithdrawingGoalId(emergencyFund.id);
+                                        setFundingGoalId(null);
+                                    }}
+                                    className="bg-surface/50 hover:bg-white/10 text-white px-4 py-2 rounded-lg font-bold transition-all text-sm flex items-center gap-2 border border-white/10"
+                                >
+                                    <ArrowRight size={16} /> Disponer
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Acciones de Fondeo y Retiro para Fondo de Emergencia */}
+                    <div className="mt-4">
+                        {fundingGoalId === emergencyFund.id && (
+                            <form onSubmit={(e) => handleFundSubmit(e, emergencyFund.id)} className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 bg-black/40 p-4 rounded-xl border border-blue-500/20 animate-fade-in">
+                                <div className="flex-1 space-y-3 sm:space-y-0 sm:flex sm:gap-3">
+                                    <label className="flex-1 flex flex-col gap-1 text-xs font-bold text-blue-200">
+                                        Transferir desde:
+                                        <select 
+                                            required
+                                            className="bg-surface border border-white/10 p-3 rounded-xl text-white outline-none w-full"
+                                            value={fundData.accountId} onChange={e => setFundData({...fundData, accountId: e.target.value})}
+                                        >
+                                            <option value="" disabled>Selecciona tarjeta de débito...</option>
+                                            {debitAccounts.map(acc => (
+                                                <option key={acc.id} value={acc.id}>{acc.name} (Disp: ${acc.balance})</option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    <label className="sm:max-w-[150px] flex flex-col gap-1 text-xs font-bold text-blue-200">
+                                        Monto ($)
+                                        <input 
+                                            required type="text" inputMode="decimal" placeholder="0.00"
+                                            className="bg-surface border border-white/10 p-3 rounded-xl text-white font-bold outline-none w-full"
+                                            value={displayFundAmount} onChange={e => formatNumberInput(e, (val) => setFundData({...fundData, amount: val}), setDisplayFundAmount)}
+                                        />
+                                    </label>
+                                </div>
+                                <div className="flex gap-2 mt-2 sm:mt-0">
+                                    <button type="button" onClick={() => setFundingGoalId(null)} className="flex-1 sm:flex-none text-text-muted bg-surface/50 border border-white/5 hover:bg-white/10 p-3 rounded-xl text-sm font-bold transition-colors">Cancelar</button>
+                                    <button disabled={fundingLoading} type="submit" className="flex-1 sm:flex-none bg-blue-600 text-white p-3 px-6 rounded-xl hover:bg-blue-500 transition-colors font-bold flex justify-center items-center gap-2 disabled:opacity-50">
+                                        <PlusCircle size={18} /> Abonar
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+                        {withdrawingGoalId === emergencyFund.id && (
+                            <form onSubmit={(e) => handleWithdrawSubmit(e, emergencyFund.id)} className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 bg-black/40 p-4 rounded-xl border border-blue-500/20 animate-fade-in">
+                                <div className="flex-1 space-y-3 sm:space-y-0 sm:flex sm:gap-3">
+                                    <label className="flex-1 flex flex-col gap-1 text-xs font-bold text-blue-200">
+                                        Retirar hacia:
+                                        <select 
+                                            required
+                                            className="bg-surface border border-white/10 p-3 rounded-xl text-white outline-none w-full"
+                                            value={withdrawData.accountId} onChange={e => setWithdrawData({...withdrawData, accountId: e.target.value})}
+                                        >
+                                            <option value="" disabled>Selecciona tarjeta de destino...</option>
+                                            {debitAccounts.map(acc => (
+                                                <option key={acc.id} value={acc.id}>{acc.name} (Disp: ${acc.balance})</option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    <label className="sm:max-w-[150px] flex flex-col gap-1 text-xs font-bold text-blue-200">
+                                        Monto a Retirar ($)
+                                        <input 
+                                            required type="text" inputMode="decimal" placeholder="0.00"
+                                            className="bg-surface border border-white/10 p-3 rounded-xl text-white font-bold outline-none w-full"
+                                            value={displayWithdrawAmount} onChange={e => formatNumberInput(e, (val) => setWithdrawData({...withdrawData, amount: val}), setDisplayWithdrawAmount)}
+                                        />
+                                    </label>
+                                </div>
+                                <div className="flex gap-2 mt-2 sm:mt-0">
+                                    <button type="button" onClick={() => setWithdrawingGoalId(null)} className="flex-1 sm:flex-none text-text-muted bg-surface/50 border border-white/5 hover:bg-white/10 p-3 rounded-xl text-sm font-bold transition-colors">Cancelar</button>
+                                    <button disabled={fundingLoading} type="submit" className="flex-1 sm:flex-none bg-white text-blue-900 p-3 px-6 rounded-xl hover:bg-gray-200 transition-colors font-bold flex justify-center items-center gap-2 disabled:opacity-50">
+                                        <ArrowRight size={18} /> Retirar
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+
         {/* Listado de Metas */}
         <div id="tour-sav-list" className="space-y-6">
             
-            {savings.length === 0 ? (
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+                <Target className="text-primary" /> Mis Metas de Ahorro
+            </h2>
+
+            {regularSavings.length === 0 ? (
                 <div className="bg-surface rounded-3xl border border-white/5 shadow-xl p-10 text-center text-text-muted">
                     <Target size={48} className="mx-auto mb-4 opacity-20" />
                     <p>No tienes metas de ahorro activas.</p>
                     <p className="text-sm">Empieza a planear tu futuro creando una meta hoy.</p>
                 </div>
             ) : (
-                savings.map(goal => {
+                regularSavings.map(goal => {
                     const isFree = goal.isFreeGoal;
                     const quota = isFree ? 0 : calculateQuota(goal.targetAmount, goal.savedAmount, goal.deadline, goal.frequency);
                     const progress = isFree ? 0 : Math.min((goal.savedAmount / goal.targetAmount) * 100, 100);
