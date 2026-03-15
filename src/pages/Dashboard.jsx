@@ -2,10 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { calculateMSIForMonth, calculateRemainingMSIDebt } from '../utils/msi';
 import { isSameMonth, format } from 'date-fns';
-import { LayoutDashboard, Wallet, Receipt, CalendarSync, Landmark, PieChart as PieIcon, CreditCard, PiggyBank, Clock3, HelpCircle, X } from 'lucide-react';
+import { LayoutDashboard, Wallet, Receipt, CalendarSync, Landmark, PieChart as PieIcon, CreditCard, PiggyBank, Clock3, HelpCircle, X, Sparkles } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { startTour } from '../utils/tourConfig';
 import { payCreditCard } from '../services/db';
+import { getFinancialAdvice } from '../services/ai';
 
 const COLORS = ['#8b5cf6', '#10b981', '#f43f5e', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6', '#8ebd4e'];
 
@@ -29,6 +30,11 @@ export default function Dashboard() {
   const [payAmount, setPayAmount] = useState('');
   const [selectedDebitId, setSelectedDebitId] = useState('');
   const [isPaying, setIsPaying] = useState(false);
+
+  // AI State
+  const [aiAdvice, setAiAdvice] = useState(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [showAiModal, setShowAiModal] = useState(false);
 
   const handleOpenPayModal = (cc) => {
       setSelectedCC(cc);
@@ -176,6 +182,11 @@ export default function Dashboard() {
 
   // SUMAR EL STATEMENT DEBT DE TODAS LAS TARJETAS PARA EL CÁLCULO
   const totalCreditStatementDebt = creditUsage.reduce((sum, cc) => sum + cc.currentStatementDebt, 0);
+  
+  // Calculate average credit usage for AI
+  const avgCreditUsage = creditCards.length > 0 
+        ? creditUsage.reduce((acc, cc) => acc + cc.usagePercent, 0) / creditCards.length 
+        : 0;
 
   // AGRUPAR LOS GASTOS COMPARTIDOS DEL MES
   const sharedExpensesSummary = useMemo(() => {
@@ -278,6 +289,32 @@ export default function Dashboard() {
                 <HelpCircle size={20} />
             </button>
           </div>
+          
+          <button 
+             onClick={async () => {
+                 setShowAiModal(true);
+                 setIsAiLoading(true);
+                 try {
+                     const advice = await getFinancialAdvice({
+                         realAvailableBalance,
+                         totalToPayThisMonth,
+                         totalSaved,
+                         totalEmergencyFund,
+                         avgCreditUsage,
+                         topCategories: expensesByCategory.slice(0, 3).map(c => ({ name: c.name, amount: c.value }))
+                     });
+                     setAiAdvice(advice);
+                 } catch (err) {
+                     setAiAdvice(`❌ **¡Ops! Ocurrió un error.**\n\n${err.message}`);
+                 } finally {
+                     setIsAiLoading(false);
+                 }
+             }}
+             className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-90 transition-opacity text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-[0_0_20px_rgba(236,72,153,0.3)] animate-pulse"
+          >
+             <Sparkles size={20} />
+             Analizar Mi Mes con IA
+          </button>
       </div>
 
       {/* 6 KPIs Financieros (Top Level) */}
@@ -607,6 +644,64 @@ export default function Dashboard() {
                 {isPaying ? 'Procesando...' : 'Confirmar Pago'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Asesor IA */}
+      {showAiModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAiModal(false)}></div>
+          <div className="bg-surface relative z-10 w-full max-w-lg p-8 rounded-3xl border border-pink-500/20 shadow-[0_0_50px_rgba(236,72,153,0.1)] animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold flex items-center gap-2 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 text-transparent bg-clip-text">
+                <Sparkles className="text-pink-400" /> Mi Asesor IA
+              </h3>
+              <button 
+                onClick={() => setShowAiModal(false)} 
+                className="text-text-muted hover:text-white p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors"
+                disabled={isAiLoading}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="bg-background/50 border border-white/5 rounded-2xl p-6 min-h-[200px] flex flex-col justify-center">
+                {isAiLoading ? (
+                    <div className="flex flex-col items-center justify-center gap-4 h-full py-8 text-pink-400">
+                         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
+                         <p className="animate-pulse font-medium text-center">Analizando tus movimientos del mes...<br/><span className="text-xs text-text-muted">Generando recomendaciones precisas</span></p>
+                    </div>
+                ) : (
+                    <div className="prose prose-invert prose-p:leading-relaxed max-w-none text-sm md:text-base">
+                        {aiAdvice ? (
+                           aiAdvice.split('\n').map((line, i) => {
+                               // Simple markdown rendering for AI response
+                               if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+                                   const text = line.replace(/^[-*]\s/, '');
+                                   // Simple bold markdown parsing
+                                   const parsedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                                   return <div key={i} className="flex gap-3 mb-4 last:mb-0 bg-white/5 p-4 rounded-xl items-start">
+                                       <span className="text-pink-400 mt-1">•</span>
+                                       <span dangerouslySetInnerHTML={{ __html: parsedText }} />
+                                   </div>
+                               }
+                               if (line.trim() !== "") {
+                                   const parsedLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                                   return <p key={i} className="mb-4" dangerouslySetInnerHTML={{__html: parsedLine}} />
+                               }
+                               return null;
+                           })
+                        ) : (
+                           <p className="text-center text-danger">No se pudo cargar el análisis.</p>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            <p className="text-[10px] text-center text-text-muted mt-6 opacity-60">
+                Los consejos de IA están generados con Gemini de acuerdo a tus saldos y deudas actuales, agrupados y asegurados privadamente sin comprometer información externa conectable.
+            </p>
           </div>
         </div>
       )}
