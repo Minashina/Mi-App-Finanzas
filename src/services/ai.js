@@ -1,18 +1,12 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Initialize the API client using the environment variable
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-if (!API_KEY) {
-  console.warn("VITE_GEMINI_API_KEY is missing from environment variables.");
-}
-
-const genAI = new GoogleGenerativeAI(API_KEY || "API_KEY_NOT_FOUND");
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); // Fast and cheap model ideal for this task
-
-export const getFinancialAdvice = async (financialSummary) => {
-  if (!API_KEY) {
-    throw new Error("No se encontró la clave de la API de Gemini. Configura VITE_GEMINI_API_KEY en tu archivo .env.local");
+export const getFinancialAdvice = async (financialSummary, userApiKey) => {
+  if (!userApiKey) {
+    throw new Error("No se proporcionó una clave de API.");
   }
+
+  const genAI = new GoogleGenerativeAI(userApiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); // Fast and cheap model ideal for this task
 
   const prompt = `
     Eres un asesor financiero experto, amigable y directo. Te daré un resumen de las finanzas del usuario de ESTE MES.
@@ -43,6 +37,10 @@ export const getFinancialAdvice = async (financialSummary) => {
     return responseText;
   } catch (error) {
     console.error("Error from Gemini API:", error);
+    // Determine friendly error if it's an API Key issue
+    if (error.message && error.message.toLowerCase().includes('api key')) {
+        throw new Error("La clave de API ingresada no es válida o ha caducado. Por favor, revísala.");
+    }
     throw new Error("Lo siento, no pude conectar con el asesor IA en este momento. Inténtalo más tarde.");
   }
 };

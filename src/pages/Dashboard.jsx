@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { calculateMSIForMonth, calculateRemainingMSIDebt } from '../utils/msi';
 import { isSameMonth, format } from 'date-fns';
-import { LayoutDashboard, Wallet, Receipt, CalendarSync, Landmark, PieChart as PieIcon, CreditCard, PiggyBank, Clock3, HelpCircle, X, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Wallet, Receipt, CalendarSync, Landmark, PieChart as PieIcon, CreditCard, PiggyBank, Clock3, HelpCircle, X, Sparkles, KeyRound } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { startTour } from '../utils/tourConfig';
 import { payCreditCard } from '../services/db';
@@ -24,17 +24,67 @@ export default function Dashboard() {
   const { accounts, transactions, fixedExpenses, savings, refreshData } = useFinance();
   const currentMonthDate = new Date();
 
-  // Modal State
+  // UI / Modal State
   const [showPayModal, setShowPayModal] = useState(false);
   const [selectedCC, setSelectedCC] = useState(null);
   const [payAmount, setPayAmount] = useState('');
   const [selectedDebitId, setSelectedDebitId] = useState('');
   const [isPaying, setIsPaying] = useState(false);
 
-  // AI State
+  // AI & API Key State
   const [aiAdvice, setAiAdvice] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
+  
+  const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+
+  const handleSaveApiKey = (e) => {
+      e.preventDefault();
+      if (!apiKeyInput.trim()) return;
+      localStorage.setItem('gemini_api_key', apiKeyInput.trim());
+      setUserApiKey(apiKeyInput.trim());
+      setShowApiKeyModal(false);
+      setApiKeyInput('');
+      handleTriggerAI(apiKeyInput.trim()); // Auto-trigger after save
+  };
+
+  const handleClearApiKey = () => {
+      if(window.confirm('¿Estás seguro de que deseas borrar tu clave de API de este navegador?')) {
+          localStorage.removeItem('gemini_api_key');
+          setUserApiKey('');
+      }
+  };
+
+  const handleTriggerAI = async (keyToUse = userApiKey) => {
+    if (!keyToUse) {
+        setShowApiKeyModal(true);
+        return;
+    }
+
+    setShowAiModal(true);
+    setIsAiLoading(true);
+    try {
+        const advice = await getFinancialAdvice({
+            realAvailableBalance,
+            totalToPayThisMonth,
+            totalSaved,
+            totalEmergencyFund,
+            avgCreditUsage,
+            topCategories: expensesByCategory.slice(0, 3).map(c => ({ name: c.name, amount: c.value }))
+        }, keyToUse);
+        setAiAdvice(advice);
+    } catch (err) {
+        setAiAdvice(`❌ **¡Ops! Ocurrió un error.**\n\n${err.message}`);
+        // If it's a key error, maybe they want to clear it easily:
+        if (err.message.includes('clave de API')) {
+            setAiAdvice(prev => prev + `\n\n*Puedes borrar tu clave actual usando el icono de llave pequeña junto al botón principal.*`);
+        }
+    } finally {
+        setIsAiLoading(false);
+    }
+  };
 
   const handleOpenPayModal = (cc) => {
       setSelectedCC(cc);
@@ -290,31 +340,25 @@ export default function Dashboard() {
             </button>
           </div>
           
-          <button 
-             onClick={async () => {
-                 setShowAiModal(true);
-                 setIsAiLoading(true);
-                 try {
-                     const advice = await getFinancialAdvice({
-                         realAvailableBalance,
-                         totalToPayThisMonth,
-                         totalSaved,
-                         totalEmergencyFund,
-                         avgCreditUsage,
-                         topCategories: expensesByCategory.slice(0, 3).map(c => ({ name: c.name, amount: c.value }))
-                     });
-                     setAiAdvice(advice);
-                 } catch (err) {
-                     setAiAdvice(`❌ **¡Ops! Ocurrió un error.**\n\n${err.message}`);
-                 } finally {
-                     setIsAiLoading(false);
-                 }
-             }}
-             className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-90 transition-opacity text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-[0_0_20px_rgba(236,72,153,0.3)] animate-pulse"
-          >
-             <Sparkles size={20} />
-             Analizar Mi Mes con IA
-          </button>
+          <div className="flex items-center gap-2">
+              {userApiKey && (
+                 <button
+                    onClick={handleClearApiKey}
+                    className="p-3 rounded-xl border border-white/5 bg-white/5 text-text-muted hover:text-danger hover:border-danger/30 transition-all opacity-70 hover:opacity-100"
+                    title="Borrar mi API KEY guardada"
+                 >
+                    <KeyRound size={20} />
+                 </button>
+              )}
+              
+              <button 
+                onClick={() => handleTriggerAI()}
+                className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-90 transition-opacity text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-[0_0_20px_rgba(236,72,153,0.3)] animate-pulse"
+              >
+                <Sparkles size={20} />
+                Analizar Mi Mes con IA
+              </button>
+          </div>
       </div>
 
       {/* 6 KPIs Financieros (Top Level) */}
@@ -643,6 +687,55 @@ export default function Dashboard() {
               >
                 {isPaying ? 'Procesando...' : 'Confirmar Pago'}
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal API KEY request */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowApiKeyModal(false)}></div>
+          <div className="bg-surface relative z-10 w-full max-w-md p-8 rounded-3xl border border-pink-500/30 shadow-[0_0_50px_rgba(236,72,153,0.15)] animate-in fade-in zoom-in-95 duration-200">
+             <div className="flex justify-between items-start mb-4">
+              <h3 className="text-2xl font-bold flex items-center gap-2 text-pink-400">
+                <KeyRound /> Configurar Asesor IA
+              </h3>
+              <button onClick={() => setShowApiKeyModal(false)} className="text-text-muted hover:text-white p-2">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <p className="text-sm text-text-muted mb-6">
+              Para usar el asesor de IA de forma gratuita para ti, necesitas proporcionar tu propia clave mágica de <strong>Google Gemini API</strong>. 
+              <br/><br/>
+              Esta clave se guardará <strong>solo en tu navegador actual</strong> y no se comparte con nadie más.
+            </p>
+
+            <form onSubmit={handleSaveApiKey} className="flex flex-col gap-5">
+              <label className="flex flex-col gap-2 font-medium">
+                Pega tu "API KEY" aquí:
+                <input 
+                  required type="password" 
+                  placeholder="AIzaSyA..."
+                  className="bg-background border border-white/10 p-3 rounded-xl focus:border-pink-500 focus:ring-1 focus:ring-pink-500 outline-none transition-all font-mono"
+                  value={apiKeyInput} 
+                  onChange={e => setApiKeyInput(e.target.value)} 
+                />
+              </label>
+
+              <button 
+                type="submit"
+                className="w-full bg-pink-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-pink-500 transition-colors shadow-lg"
+              >
+                Guardar y Analizar Mi Mes
+              </button>
+
+              <div className="text-center mt-2">
+                 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-xs text-blue-400 hover:text-blue-300 underline">
+                     ¿No tienes una? Consíguela gratis aquí.
+                 </a>
+              </div>
             </form>
           </div>
         </div>
