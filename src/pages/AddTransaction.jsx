@@ -24,7 +24,9 @@ export default function AddTransaction() {
     date: new Date().toISOString().slice(0, 10),
     description: '',
     isMSI: false,
-    msiMonths: 3
+    msiMonths: 3,
+    isShared: false,
+    borrowerName: ''
   });
 
   const [displayAmount, setDisplayAmount] = useState('');
@@ -112,7 +114,9 @@ export default function AddTransaction() {
         category: formData.category,
         date: new Date(formData.date + 'T12:00:00'), // Asegurar que caiga en el día local correcto
         description: formData.description,
-        isMSI: isMSIValid
+        isMSI: isMSIValid,
+        isShared: isCreditCard && formData.type === 'expense' && formData.isShared,
+        borrowerName: isCreditCard && formData.type === 'expense' && formData.isShared ? formData.borrowerName.trim() : null
       };
 
       if (isMSIValid) {
@@ -135,7 +139,7 @@ export default function AddTransaction() {
       }
 
       await addTransaction(tx);
-      setFormData(prev => ({ ...prev, amount: '', description: '', isMSI: false }));
+      setFormData(prev => ({ ...prev, amount: '', description: '', isMSI: false, isShared: false, borrowerName: '' }));
       setDisplayAmount('');
       refreshData();
       alert("Transacción registrada con éxito");
@@ -270,18 +274,46 @@ export default function AddTransaction() {
             </label>
           </div>
 
-          {/* Lógica de MSI (Solo para gastos con Tarjeta de Crédito) */}
+          {/* Lógica de Préstamo y MSI (Solo para gastos con Tarjeta de Crédito) */}
           {isCreditCard && formData.type === 'expense' && (
-            <div id="tour-add-msi" className="mt-4 p-5 border border-primary/30 bg-primary/5 rounded-2xl flex flex-col gap-4">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  className="w-5 h-5 accent-primary rounded cursor-pointer"
-                  checked={formData.isMSI} 
-                  onChange={e => setFormData({...formData, isMSI: e.target.checked})} 
-                />
-                <span className="font-bold text-lg text-primary-light">¿Es compra a Meses Sin Intereses (MSI)?</span>
-              </label>
+            <div className="flex flex-col gap-4">
+              
+              <div className="p-5 border border-blue-500/30 bg-blue-500/5 rounded-2xl flex flex-col gap-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="w-5 h-5 accent-blue-500 rounded cursor-pointer"
+                    checked={formData.isShared} 
+                    onChange={e => setFormData({...formData, isShared: e.target.checked})} 
+                  />
+                  <span className="font-bold text-lg text-blue-300">¿Compra compartida o prestaste la tarjeta?</span>
+                </label>
+
+                {formData.isShared && (
+                  <div className="pl-8 flex flex-col gap-2 animate-in fade-in slide-in-from-top-2">
+                    <label className="flex flex-col gap-2 font-medium">
+                      ¿Quién te debe este dinero?
+                      <input 
+                        required={formData.isShared} type="text" placeholder="Ej. Juan, María, Cena del equipo..."
+                        className="bg-background border border-white/10 p-3 rounded-xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all w-full max-w-sm"
+                        value={formData.borrowerName} 
+                        onChange={e => setFormData({...formData, borrowerName: e.target.value})} 
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <div id="tour-add-msi" className="p-5 border border-primary/30 bg-primary/5 rounded-2xl flex flex-col gap-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="w-5 h-5 accent-primary rounded cursor-pointer"
+                    checked={formData.isMSI} 
+                    onChange={e => setFormData({...formData, isMSI: e.target.checked})} 
+                  />
+                  <span className="font-bold text-lg text-primary-light">¿Es compra a Meses Sin Intereses (MSI)?</span>
+                </label>
 
               {formData.isMSI && (
                 <div className="pl-8 flex flex-col gap-2 animate-in fade-in slide-in-from-top-2">
@@ -305,6 +337,7 @@ export default function AddTransaction() {
                   )}
                 </div>
               )}
+            </div>
             </div>
           )}
 

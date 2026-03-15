@@ -142,8 +142,8 @@ export default function Dashboard() {
     const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
 
     // --- CÁLCULO DE ESTADO DE CUENTA ACTUAL (A Pagar Este Mes/Corte) ---
-    const statementExpenses = ccTxs.filter(tx => {
-       if (tx.type !== 'expense' || tx.isMSI) return false;
+    const currentStatementTxs = ccTxs.filter(tx => {
+       if (tx.type !== 'expense' && tx.type !== 'income' || tx.isMSI) return false;
        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
        if (cc.cutoffDay) {
            const cutoff = Number(cc.cutoffDay);
@@ -156,21 +156,54 @@ export default function Dashboard() {
            return txDate > previousStatementCutoff && txDate <= currentStatementCutoff;
        }
        return isSameMonth(txDate, currentMonthDate);
-    }).reduce((sum, tx) => sum + tx.amount, 0);
+    });
+
+    const statementExpenses = currentStatementTxs.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0);
+
+    // Identificar gastos compartidos del corte actual
+    const sharedTxs = currentStatementTxs.filter(tx => tx.type === 'expense' && tx.isShared && tx.borrowerName);
 
     // Sumar MSI impagos aplicables a este mes
     const statementMSI = calculateMSIForMonth(ccTxs.filter(tx => tx.isMSI), currentMonthDate);
     
     // Restar abonos recibidos dentro de este mismo corte.
-    const currentMonthPayments = ccTxs.filter(tx => tx.type === 'income' && isSameMonth(tx.date.toDate ? tx.date.toDate() : new Date(tx.date), currentMonthDate)).reduce((sum, tx) => sum + tx.amount, 0);
+    const currentMonthPayments = currentStatementTxs.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
 
     const currentStatementDebt = Math.max(0, statementExpenses + statementMSI - currentMonthPayments);
 
-    return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent, currentStatementDebt };
+    return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent, currentStatementDebt, sharedTxs };
   });
 
   // SUMAR EL STATEMENT DEBT DE TODAS LAS TARJETAS PARA EL CÁLCULO
   const totalCreditStatementDebt = creditUsage.reduce((sum, cc) => sum + cc.currentStatementDebt, 0);
+
+  // AGRUPAR LOS GASTOS COMPARTIDOS DEL MES
+  const sharedExpensesSummary = useMemo(() => {
+     const summary = {};
+     creditUsage.forEach(cc => {
+         if (cc.sharedTxs) {
+             cc.sharedTxs.forEach(tx => {
+                 const name = tx.borrowerName;
+                 summary[name] = (summary[name] || 0) + tx.amount;
+             });
+         }
+     });
+     
+     // Además, checamos los MSI compartidos activos este mes (si hubieran)
+     msiTxs.forEach(tx => {
+         if (tx.isShared && tx.borrowerName) {
+             const msiForThisTxThisMonth = calculateMSIForMonth([tx], currentMonthDate);
+             if (msiForThisTxThisMonth > 0) {
+                 const name = tx.borrowerName;
+                 summary[name] = (summary[name] || 0) + msiForThisTxThisMonth;
+             }
+         }
+     });
+
+     return Object.entries(summary).map(([name, amount]) => ({ name, amount })).sort((a,b) => b.amount - a.amount);
+  }, [creditUsage, msiTxs, currentMonthDate]);
+
+  const totalSharedAmount = sharedExpensesSummary.reduce((sum, item) => sum + item.amount, 0);
 
   // KPI 1: Total a Pagar Este Mes
   const totalToPayThisMonth = totalCreditStatementDebt + unpaidFixedExpenses;
@@ -272,6 +305,11 @@ export default function Dashboard() {
             <div className="mt-4 text-xs font-medium text-text-muted space-y-1">
                 <div className="flex justify-between"><span>Gastos Fijos:</span> <span>${unpaidFixedExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                 <div className="flex justify-between"><span>Tarjetas de Crédito:</span> <span>${totalCreditStatementDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                {totalSharedAmount > 0 && (
+                     <div className="mt-2 text-[10px] text-blue-400 border-t border-white/5 pt-2">
+                         (De los cuales <strong className="text-blue-300">${totalSharedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> te los deben tus amigos)
+                     </div>
+                )}
             </div>
         </div>
 
@@ -389,6 +427,29 @@ export default function Dashboard() {
                      </div>
                 )}
             </div>
+            
+            {/* Dinero que me deben (Widget Inferior de Sidebar) */}
+            {sharedExpensesSummary.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-white/10">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-blue-400 mb-4 flex items-center gap-2">
+                        <Wallet size={16} /> Dinero que me deben
+                    </h3>
+                    <div className="flex flex-col gap-3">
+                        {sharedExpensesSummary.map((borrower, idx) => (
+                            <div key={idx} className="flex justify-between items-center bg-blue-900/10 border border-blue-500/20 p-3 rounded-xl">
+                                <span className="font-semibold text-blue-100">{borrower.name}</span>
+                                <span className="font-black text-blue-300">
+                                    ${borrower.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                            </div>
+                        ))}
+                        <div className="flex justify-between items-center px-2 mt-1 text-xs text-text-muted">
+                            <span>Suman:</span>
+                            <span className="font-bold">${totalSharedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
 
       </div>
