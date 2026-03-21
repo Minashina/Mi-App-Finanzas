@@ -7,6 +7,9 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recha
 import { startTour } from '../utils/tourConfig';
 import { payCreditCard } from '../services/db';
 import { getFinancialAdvice } from '../services/ai';
+import BurnRateIndicator from '../components/BurnRateIndicator';
+import ProjectedBalanceChart from '../components/ProjectedBalanceChart';
+import { calculateBurnRate, calculateProjectedBalance } from '../utils/projections';
 
 const COLORS = ['#8b5cf6', '#10b981', '#f43f5e', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6', '#8ebd4e'];
 
@@ -322,6 +325,21 @@ export default function Dashboard() {
         .sort((a, b) => b.value - a.value); 
   }, [thisMonthTxs, creditCardStatementTxs, msiTxs, fixedExpenses, accounts, currentMonthDate]);
 
+  // PROJECTIONS CALCULATION
+  const variableTxsThisMonth = useMemo(() => {
+      return thisMonthTxs.filter(tx => tx.type === 'expense' && !tx.isMSI && !tx.fixedExpenseId);
+  }, [thisMonthTxs]);
+  
+  const variableSpendThisMonth = variableTxsThisMonth.reduce((acc, tx) => acc + tx.amount, 0);
+  
+  const burnRateData = useMemo(() => {
+      return calculateBurnRate(realAvailableBalance, variableSpendThisMonth, currentMonthDate);
+  }, [realAvailableBalance, variableSpendThisMonth, currentMonthDate]);
+
+  const projectedBalanceData = useMemo(() => {
+      return calculateProjectedBalance(thisMonthTxs, realAvailableBalance, unpaidFixedExpenses, currentMonthDate);
+  }, [thisMonthTxs, realAvailableBalance, unpaidFixedExpenses, currentMonthDate]);
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
       
@@ -442,6 +460,16 @@ export default function Dashboard() {
             </p>
         </div>
 
+      </div>
+
+      {/* PROYECCIONES */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1 flex flex-col justify-center">
+              <BurnRateIndicator burnRateData={burnRateData} />
+          </div>
+          <div className="lg:col-span-2">
+              <ProjectedBalanceChart data={projectedBalanceData} />
+          </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
