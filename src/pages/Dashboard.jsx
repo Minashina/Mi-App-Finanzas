@@ -201,8 +201,8 @@ export default function Dashboard() {
     const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
 
     // --- CÁLCULO DE ESTADO DE CUENTA ACTUAL (A Pagar Este Mes/Corte) ---
-    const currentStatementTxs = ccTxs.filter(tx => {
-       if (tx.type !== 'expense' && tx.type !== 'income' || tx.isMSI) return false;
+    const statementExpensesTxs = ccTxs.filter(tx => {
+       if (tx.type !== 'expense' || tx.isMSI) return false;
        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
        if (cc.cutoffDay) {
            const cutoff = Number(cc.cutoffDay);
@@ -217,18 +217,37 @@ export default function Dashboard() {
        return isSameMonth(txDate, currentMonthDate);
     });
 
-    const statementExpenses = currentStatementTxs.filter(tx => tx.type === 'expense').reduce((sum, tx) => sum + tx.amount, 0);
+    const statementExpenses = statementExpensesTxs.reduce((sum, tx) => sum + tx.amount, 0);
 
     // Identificar gastos compartidos del corte actual
-    const sharedTxs = currentStatementTxs.filter(tx => tx.type === 'expense' && tx.isShared && tx.borrowerName);
+    const sharedTxs = statementExpensesTxs.filter(tx => tx.isShared && tx.borrowerName);
 
     // Sumar MSI impagos aplicables a este mes
     const statementMSI = calculateMSIForMonth(ccTxs.filter(tx => tx.isMSI), currentMonthDate);
     
-    // Restar abonos recibidos dentro de este mismo corte.
-    const currentMonthPayments = currentStatementTxs.filter(tx => tx.type === 'income').reduce((sum, tx) => sum + tx.amount, 0);
+    // Restar abonos recibidos. Se amplía la ventana para incluir pagos en el mismo mes calendario 
+    // y los pagos entre el corte anterior y el actual.
+    const currentMonthPayments = ccTxs.filter(tx => {
+       if (tx.type !== 'income' || tx.isMSI) return false;
+       const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+       if (cc.cutoffDay) {
+           const cutoff = Number(cc.cutoffDay);
+           const targetYear = currentMonthDate.getFullYear();
+           const targetMonth = currentMonthDate.getMonth();
+           const currentStatementCutoff = new Date(targetYear, targetMonth, cutoff);
+           currentStatementCutoff.setHours(23, 59, 59, 999);
+           const previousStatementCutoff = new Date(targetYear, targetMonth - 1, cutoff);
+           previousStatementCutoff.setHours(23, 59, 59, 999);
+           
+           const isWithinCalendarMonth = isSameMonth(txDate, currentMonthDate);
+           return (txDate > previousStatementCutoff && txDate <= currentStatementCutoff) || isWithinCalendarMonth;
+       }
+       return isSameMonth(txDate, currentMonthDate);
+    }).reduce((sum, tx) => sum + tx.amount, 0);
 
-    const currentStatementDebt = Math.max(0, statementExpenses + statementMSI - currentMonthPayments);
+    let currentStatementDebt = Math.max(0, statementExpenses + statementMSI - currentMonthPayments);
+    // Limitar "A Pagar este Mes" para que nunca exceda la deuda total real actual
+    currentStatementDebt = Math.min(currentStatementDebt, actualDebt);
 
     return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent, currentStatementDebt, sharedTxs };
   });
