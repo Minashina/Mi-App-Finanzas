@@ -33,6 +33,9 @@ export default function Dashboard() {
   const [payAmount, setPayAmount] = useState('');
   const [selectedDebitId, setSelectedDebitId] = useState('');
   const [isPaying, setIsPaying] = useState(false);
+  
+  const [showBreakdownModal, setShowBreakdownModal] = useState(false);
+  const [selectedBreakdownCC, setSelectedBreakdownCC] = useState(null);
 
   // AI & API Key State
   const [aiAdvice, setAiAdvice] = useState(null);
@@ -185,13 +188,13 @@ export default function Dashboard() {
     // Gastos directos de la TC (Histórico completo)
     const regularExpenses = ccTxs.filter(tx => tx.type === 'expense' && !tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
     
-    // Deuda MSI remanente calculada según factor de tiempo (Decae automáticamente a lo largo de los meses)
+    // Deuda MSI remanente calculada según factor de tiempo
     const msiRemaining = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateRemainingMSIDebt(tx), 0);
     
     // Pagos a la TC históricos
     const ccPayments = ccTxs.filter(tx => tx.type === 'income').reduce((acc, tx) => acc + tx.amount, 0);
     
-    // Deuda total de esta tarjeta (fórmula original del usuario para evitar cobrar MSIs antiguos sin registrar pago)
+    // Deuda total de esta tarjeta
     const totalDebt = (regularExpenses + msiRemaining) - ccPayments;
     const actualDebt = Math.max(0, totalDebt);
     
@@ -199,8 +202,7 @@ export default function Dashboard() {
     const availableCredit = Math.max(0, cc.creditLimit - actualDebt);
     const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
 
-    // --- CÁLCULO DE ESTADO DE CUENTA ACTUAL (A Pagar Este Mes/Corte) ---
-    // Determinamos primero las fechas de corte
+    // --- CÁLCULO DE ESTADO DE CUENTA ACTUAL E HISTÓRICO ---
     let currentStatementCutoff = new Date();
     let previousStatementCutoff = new Date();
     if (cc.cutoffDay) {
@@ -214,21 +216,55 @@ export default function Dashboard() {
         previousStatementCutoff = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), 0, 23, 59, 59, 999);
     }
 
-    // Todos los gastos regulares cobrables hasta el corte actual
-    const billedRegularExpenses = ccTxs.filter(tx => {
+    // 1. Gastos regulares cobrables hasta el corte actual
+    const billedRegularTxs = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI) return false;
        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
        return txDate <= currentStatementCutoff;
-    }).reduce((sum, tx) => sum + tx.amount, 0);
+    });
+    const billedRegularExpenses = billedRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
 
-    // Sumar MSI aplicables a este mes corriente
-    const statementMSI = calculateMSIForMonth(ccTxs.filter(tx => tx.isMSI), currentMonthDate);
+    // 2. Total original de todas las MSI para sacar lo que YA SE FACTURÓ históricamente
+    const originalMSI = ccTxs.filter(tx => tx.type === 'expense' && tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
+    const billedMSI = originalMSI - msiRemaining;
 
-    // El saldo a pagar usa toda la deuda regular facturada más el MSI del mes, descontando TODOS los pagos históricos.
-    // Esto previene que ingresos recientes borren el estado de cuenta entero ("A pagar: $0") de manera errónea, 
-    // y al mismo tiempo arrastra saldos vencidos de cortes pasados.
-    let currentStatementDebt = Math.max(0, billedRegularExpenses + statementMSI - ccPayments);
+    // 3. Gastos Totales Facturados de Por Vida (incluye MSIs viejos que no pagaron!)
+    const totalBilledExpenses = billedRegularExpenses + billedMSI;
+
+    // 4. El Saldo a Pagar al Corte estricto
+    let currentStatementDebt = Math.max(0, totalBilledExpenses - ccPayments);
     currentStatementDebt = Math.min(currentStatementDebt, actualDebt);
+
+    // --- DESGLOSE PARA EL MODAL ---
+    // A) Transacciones Regulares de ESTE mes
+    const currentCycleRegularTxs = billedRegularTxs.filter(tx => {
+       const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+       return txDate > previousStatementCutoff;
+    });
+    const currentRegularTotal = currentCycleRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
+
+    // B) MSI de ESTE mes
+    const currentCycleMSITxs = ccTxs.filter(tx => {
+        if (tx.type !== 'expense' || !tx.isMSI) return false;
+        const msiThisMonth = calculateMSIForMonth([tx], currentMonthDate);
+        return msiThisMonth > 0;
+    }).map(tx => ({
+        ...tx,
+        msiAmountThisMonth: calculateMSIForMonth([tx], currentMonthDate)
+    }));
+    const currentMSITotal = currentCycleMSITxs.reduce((sum, tx) => sum + tx.msiAmountThisMonth, 0);
+
+    // C) Saldo Anterior (Todo lo viejo facturado MENOS todos los pagos!)
+    const previousBilledTotal = totalBilledExpenses - currentRegularTotal - currentMSITotal;
+    const pastBalance = previousBilledTotal - ccPayments;
+
+    const breakdown = {
+        pastBalance,
+        currentCycleRegularTxs,
+        currentRegularTotal,
+        currentCycleMSITxs,
+        currentMSITotal
+    };
 
     // Identificar gastos compartidos del corte actual
     const sharedTxs = ccTxs.filter(tx => {
@@ -237,7 +273,7 @@ export default function Dashboard() {
        return txDate > previousStatementCutoff && txDate <= currentStatementCutoff;
     });
 
-    return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent, currentStatementDebt, sharedTxs };
+    return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent, currentStatementDebt, sharedTxs, breakdown };
   });
 
   // SUMAR EL STATEMENT DEBT DE TODAS LAS TARJETAS PARA EL CÁLCULO
@@ -634,16 +670,24 @@ export default function Dashboard() {
                             <span className="text-danger font-bold text-xs uppercase tracking-wide block mb-1">A Pagar este Corte</span>
                             <span className="font-black text-2xl text-danger">${cc.currentStatementDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
-                        {cc.currentStatementDebt > 0 || cc.totalDebt > 0 ? (
-                            <button 
-                                onClick={() => handleOpenPayModal(cc)}
-                                className="bg-danger hover:bg-red-700 text-white font-bold py-2 px-6 rounded-xl transition-all shadow-lg hover:scale-105 w-full md:w-auto"
+                        <div className="flex flex-col gap-2 w-full md:w-auto">
+                            {cc.currentStatementDebt > 0 || cc.totalDebt > 0 ? (
+                                <button 
+                                    onClick={() => handleOpenPayModal(cc)}
+                                    className="bg-danger hover:bg-red-700 text-white font-bold py-2 px-6 rounded-xl transition-all shadow-lg hover:scale-105 w-full"
+                                >
+                                    Pagar Tarjeta
+                                </button>
+                            ) : (
+                                 <span className="bg-success text-white font-bold py-2 px-6 rounded-xl w-full text-center block">¡Pagada!</span>
+                            )}
+                            <button
+                                onClick={() => { setSelectedBreakdownCC(cc); setShowBreakdownModal(true); }}
+                                className="text-danger hover:text-red-400 font-bold text-xs uppercase tracking-wide transition-colors text-center w-full mt-1"
                             >
-                                Pagar Tarjeta
+                                Ver Desglose
                             </button>
-                        ) : (
-                             <span className="bg-success text-white font-bold py-2 px-6 rounded-xl md:w-auto w-full text-center">¡Pagada!</span>
-                        )}
+                        </div>
                     </div>
                     
                     <div className="w-full bg-black/40 rounded-full h-3 overflow-hidden mb-2 relative">
@@ -669,6 +713,89 @@ export default function Dashboard() {
             </div>
         </div>
       </div>
+
+      {/* Modal Desglose del Corte */}
+      {showBreakdownModal && selectedBreakdownCC && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowBreakdownModal(false)}></div>
+          <div className="bg-surface relative z-10 w-full max-w-lg p-6 md:p-8 rounded-3xl border border-white/10 shadow-2xl animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold flex items-center gap-2">
+                <Receipt className="text-primary" /> Detalles del Corte
+              </h3>
+              <button onClick={() => setShowBreakdownModal(false)} className="text-text-muted hover:text-white p-2 bg-white/5 rounded-full">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <p className="text-sm text-text-muted mb-6">
+              Desglose matemático de cómo se calcula la cantidad a pagar para el corte actual de tu <strong className="text-white">{selectedBreakdownCC.name}</strong>.
+            </p>
+
+            <div className="flex flex-col gap-6">
+                {/* Saldo Anterior */}
+                <div className="flex justify-between items-center pb-4 border-b border-white/10">
+                    <div>
+                        <p className="font-bold text-white">Saldo Anterior No Liquidado</p>
+                        <p className="text-xs text-text-muted mt-1 leading-relaxed max-w-[250px]">Gastos y cortes históricos (incluyendo MSIs caducados) menos todos tus abonos a la fecha.</p>
+                    </div>
+                    <p className={`font-black text-xl ${selectedBreakdownCC.breakdown.pastBalance > 0 ? 'text-danger' : 'text-success'}`}>
+                        ${selectedBreakdownCC.breakdown.pastBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                </div>
+
+                {/* Compras este mes */}
+                <div>
+                    <p className="font-bold text-white mb-3">Compras Regulares del Ciclo</p>
+                    {selectedBreakdownCC.breakdown.currentCycleRegularTxs.length === 0 ? (
+                        <p className="text-sm text-text-muted italic border border-white/5 bg-black/20 p-3 rounded-xl border-dashed">No hay compras regulares en este corte.</p>
+                    ) : (
+                        <div className="flex flex-col gap-2 max-h-40 overflow-y-auto pr-2 border border-white/5 rounded-xl p-3 bg-black/20">
+                            {selectedBreakdownCC.breakdown.currentCycleRegularTxs.map(tx => (
+                                <div key={tx.id} className="flex justify-between text-sm items-center hover:bg-white/5 p-1 rounded transition-colors">
+                                    <span className="truncate pr-2 w-[70%]" title={tx.description || tx.category}>{tx.description || tx.category}</span>
+                                    <span className="font-medium flex-shrink-0 text-white">${tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <div className="flex justify-end mt-2">
+                        <p className="text-sm font-bold text-text-muted">Suman: <span className="text-primary-light ml-1 font-black text-base">${selectedBreakdownCC.breakdown.currentRegularTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></p>
+                    </div>
+                </div>
+
+                {/* MSI del mes */}
+                <div>
+                    <p className="font-bold text-white mb-3">Meses Sin Intereses (Vigentes este ciclo)</p>
+                    {selectedBreakdownCC.breakdown.currentCycleMSITxs.length === 0 ? (
+                        <p className="text-sm text-text-muted italic border border-white/5 bg-black/20 p-3 rounded-xl border-dashed">No hay cargos de MSI activos para este mes.</p>
+                    ) : (
+                        <div className="flex flex-col gap-2 max-h-40 overflow-y-auto pr-2 border border-white/5 rounded-xl p-3 bg-black/20">
+                            {selectedBreakdownCC.breakdown.currentCycleMSITxs.map(tx => (
+                                <div key={tx.id} className="flex justify-between text-sm items-center hover:bg-white/5 p-1 rounded transition-colors">
+                                    <span className="truncate pr-2 w-[55%]" title={tx.description || tx.category}>{tx.description || tx.category}</span>
+                                    <div className="text-right flex-shrink-0 w-[45%] flex items-center justify-end gap-2">
+                                        <span className="font-medium text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/80">{tx.msiData?.totalMonths} MSI</span>
+                                        <span className="font-medium text-white">${tx.msiAmountThisMonth.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <div className="flex justify-end mt-2">
+                        <p className="text-sm font-bold text-text-muted">Suman: <span className="text-primary-light ml-1 font-black text-base">${selectedBreakdownCC.breakdown.currentMSITotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></p>
+                    </div>
+                </div>
+
+                {/* Total */}
+                <div className="bg-danger/10 border border-danger/20 p-5 rounded-2xl flex justify-between items-center mt-2 shadow-[0_0_20px_rgba(244,63,94,0.1)]">
+                    <span className="font-black text-danger uppercase tracking-wider text-sm flex items-center gap-2"><CreditCard size={18}/> A Pagar este Corte</span>
+                    <span className="font-black text-3xl text-danger">${selectedBreakdownCC.currentStatementDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Pagar Tarjeta */}
       {showPayModal && selectedCC && (
