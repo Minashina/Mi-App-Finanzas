@@ -182,72 +182,56 @@ export default function Dashboard() {
   const creditUsage = creditCards.map(cc => {
     const ccTxs = transactions.filter(tx => tx.accountId === cc.id);
     
-    // Gastos directos de la TC
-    const regularExpenses = ccTxs.filter(tx => tx.type === 'expense' && !tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
+    // 1. Deuda Real Histórica (Ledger Base)
+    const allTimeRegular = ccTxs.filter(tx => tx.type === 'expense' && !tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
+    const allTimeMSI = ccTxs.filter(tx => tx.type === 'expense' && tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
+    const allTimePayments = ccTxs.filter(tx => tx.type === 'income').reduce((acc, tx) => acc + tx.amount, 0);
     
-    // Deuda MSI remanente calculada según factor de tiempo (Solo suma lo que falta por pagar)
-    const msiRemaining = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateRemainingMSIDebt(tx), 0);
-    
-    // Pagos a la TC
-    const ccPayments = ccTxs.filter(tx => tx.type === 'income').reduce((acc, tx) => acc + tx.amount, 0);
-    
-    // Deuda total de esta tarjeta
-    const totalDebt = (regularExpenses + msiRemaining) - ccPayments;
-    const actualDebt = Math.max(0, totalDebt);
+    // Deuda real viva total (lo adeudado al banco)
+    const actualDebt = Math.max(0, (allTimeRegular + allTimeMSI) - allTimePayments);
     
     totalCreditDebt += actualDebt;
     const availableCredit = Math.max(0, cc.creditLimit - actualDebt);
-
     const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
 
-    // --- CÁLCULO DE ESTADO DE CUENTA ACTUAL (A Pagar Este Mes/Corte) ---
-    const statementExpensesTxs = ccTxs.filter(tx => {
+    // 2. Cálculo del Saldo Al Corte ("A Pagar Este Mes/Corte")
+    // Identificamos gastos regulares que sucedieron DESPUÉS del corte actual
+    const unbilledRegular = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI) return false;
+       const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+       let cutoffDate = new Date();
+       if (cc.cutoffDay) {
+           const cutoff = Number(cc.cutoffDay);
+           const targetYear = currentMonthDate.getFullYear();
+           const targetMonth = currentMonthDate.getMonth();
+           cutoffDate = new Date(targetYear, targetMonth, cutoff, 23, 59, 59, 999);
+       } else {
+           cutoffDate = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 0, 23, 59, 59, 999);
+       }
+       return txDate > cutoffDate;
+    }).reduce((acc, tx) => acc + tx.amount, 0);
+    
+    // MSIs que NO han sido facturados (Evaluados usando la fecha del mes actual)
+    const unbilledMSI = ccTxs.filter(tx => tx.type === 'expense' && tx.isMSI).reduce((acc, tx) => acc + calculateRemainingMSIDebt(tx, currentMonthDate), 0);
+
+    // Saldo a pagar = Todo lo facturado hasta HOY (Deuda Real descontando la porción "No Facturada" aún)
+    let currentStatementDebt = Math.max(0, actualDebt - unbilledRegular - unbilledMSI);
+    currentStatementDebt = Math.min(currentStatementDebt, actualDebt);
+
+    // Gastos compartidos del corte actual para el widget
+    const sharedTxs = ccTxs.filter(tx => {
+       if (tx.type !== 'expense' || tx.isMSI || !tx.isShared || !tx.borrowerName) return false;
        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
        if (cc.cutoffDay) {
            const cutoff = Number(cc.cutoffDay);
            const targetYear = currentMonthDate.getFullYear();
            const targetMonth = currentMonthDate.getMonth();
-           const currentStatementCutoff = new Date(targetYear, targetMonth, cutoff);
-           currentStatementCutoff.setHours(23, 59, 59, 999);
-           const previousStatementCutoff = new Date(targetYear, targetMonth - 1, cutoff);
-           previousStatementCutoff.setHours(23, 59, 59, 999);
+           const currentStatementCutoff = new Date(targetYear, targetMonth, cutoff, 23, 59, 59, 999);
+           const previousStatementCutoff = new Date(targetYear, targetMonth - 1, cutoff, 23, 59, 59, 999);
            return txDate > previousStatementCutoff && txDate <= currentStatementCutoff;
        }
        return isSameMonth(txDate, currentMonthDate);
     });
-
-    const statementExpenses = statementExpensesTxs.reduce((sum, tx) => sum + tx.amount, 0);
-
-    // Identificar gastos compartidos del corte actual
-    const sharedTxs = statementExpensesTxs.filter(tx => tx.isShared && tx.borrowerName);
-
-    // Sumar MSI impagos aplicables a este mes
-    const statementMSI = calculateMSIForMonth(ccTxs.filter(tx => tx.isMSI), currentMonthDate);
-    
-    // Restar abonos recibidos. Se amplía la ventana para incluir pagos en el mismo mes calendario 
-    // y los pagos entre el corte anterior y el actual.
-    const currentMonthPayments = ccTxs.filter(tx => {
-       if (tx.type !== 'income' || tx.isMSI) return false;
-       const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
-       if (cc.cutoffDay) {
-           const cutoff = Number(cc.cutoffDay);
-           const targetYear = currentMonthDate.getFullYear();
-           const targetMonth = currentMonthDate.getMonth();
-           const currentStatementCutoff = new Date(targetYear, targetMonth, cutoff);
-           currentStatementCutoff.setHours(23, 59, 59, 999);
-           const previousStatementCutoff = new Date(targetYear, targetMonth - 1, cutoff);
-           previousStatementCutoff.setHours(23, 59, 59, 999);
-           
-           const isWithinCalendarMonth = isSameMonth(txDate, currentMonthDate);
-           return (txDate > previousStatementCutoff && txDate <= currentStatementCutoff) || isWithinCalendarMonth;
-       }
-       return isSameMonth(txDate, currentMonthDate);
-    }).reduce((sum, tx) => sum + tx.amount, 0);
-
-    let currentStatementDebt = Math.max(0, statementExpenses + statementMSI - currentMonthPayments);
-    // Limitar "A Pagar este Mes" para que nunca exceda la deuda total real actual
-    currentStatementDebt = Math.min(currentStatementDebt, actualDebt);
 
     return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent, currentStatementDebt, sharedTxs };
   });

@@ -78,13 +78,14 @@ export const calculateMSIPeriod = (transactionDate, months, cutoffDay = null) =>
 /**
  * Calcula la deuda remanente real y ponderada en el tiempo de una transacción MSI.
  * @param {Object} tx - La transacción MSI
- * @returns {Number} La deuda que queda por pagar al día de hoy.
+ * @param {Date} targetDate - Fecha hacia la cual calcular la deuda (default: hoy)
+ * @returns {Number} La deuda que queda por pagar a esa fecha.
  */
-export const calculateRemainingMSIDebt = (tx) => {
+export const calculateRemainingMSIDebt = (tx, targetDate = new Date()) => {
   if (!tx.isMSI || !tx.msiData || !tx.msiData.endDate) return 0;
   
-  // Utilizar timezone actual
-  const today = new Date();
+  // Utilizar la fecha objetivo (targetDate) para evaluación
+  const today = targetDate;
   
   // La endDate es la fecha donde termina de pagar
   const endDate = tx.msiData.endDate.toDate ? tx.msiData.endDate.toDate() : new Date(tx.msiData.endDate);
