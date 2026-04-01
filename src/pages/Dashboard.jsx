@@ -182,55 +182,59 @@ export default function Dashboard() {
   const creditUsage = creditCards.map(cc => {
     const ccTxs = transactions.filter(tx => tx.accountId === cc.id);
     
-    // 1. Deuda Real Histórica (Ledger Base)
-    const allTimeRegular = ccTxs.filter(tx => tx.type === 'expense' && !tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
-    const allTimeMSI = ccTxs.filter(tx => tx.type === 'expense' && tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
-    const allTimePayments = ccTxs.filter(tx => tx.type === 'income').reduce((acc, tx) => acc + tx.amount, 0);
+    // Gastos directos de la TC (Histórico completo)
+    const regularExpenses = ccTxs.filter(tx => tx.type === 'expense' && !tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
     
-    // Deuda real viva total (lo adeudado al banco)
-    const actualDebt = Math.max(0, (allTimeRegular + allTimeMSI) - allTimePayments);
+    // Deuda MSI remanente calculada según factor de tiempo (Decae automáticamente a lo largo de los meses)
+    const msiRemaining = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateRemainingMSIDebt(tx), 0);
+    
+    // Pagos a la TC históricos
+    const ccPayments = ccTxs.filter(tx => tx.type === 'income').reduce((acc, tx) => acc + tx.amount, 0);
+    
+    // Deuda total de esta tarjeta (fórmula original del usuario para evitar cobrar MSIs antiguos sin registrar pago)
+    const totalDebt = (regularExpenses + msiRemaining) - ccPayments;
+    const actualDebt = Math.max(0, totalDebt);
     
     totalCreditDebt += actualDebt;
     const availableCredit = Math.max(0, cc.creditLimit - actualDebt);
     const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
 
-    // 2. Cálculo del Saldo Al Corte ("A Pagar Este Mes/Corte")
-    // Identificamos gastos regulares que sucedieron DESPUÉS del corte actual
-    const unbilledRegular = ccTxs.filter(tx => {
+    // --- CÁLCULO DE ESTADO DE CUENTA ACTUAL (A Pagar Este Mes/Corte) ---
+    // Determinamos primero las fechas de corte
+    let currentStatementCutoff = new Date();
+    let previousStatementCutoff = new Date();
+    if (cc.cutoffDay) {
+        const cutoff = Number(cc.cutoffDay);
+        const targetYear = currentMonthDate.getFullYear();
+        const targetMonth = currentMonthDate.getMonth();
+        currentStatementCutoff = new Date(targetYear, targetMonth, cutoff, 23, 59, 59, 999);
+        previousStatementCutoff = new Date(targetYear, targetMonth - 1, cutoff, 23, 59, 59, 999);
+    } else {
+        currentStatementCutoff = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 0, 23, 59, 59, 999);
+        previousStatementCutoff = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), 0, 23, 59, 59, 999);
+    }
+
+    // Todos los gastos regulares cobrables hasta el corte actual
+    const billedRegularExpenses = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI) return false;
        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
-       let cutoffDate = new Date();
-       if (cc.cutoffDay) {
-           const cutoff = Number(cc.cutoffDay);
-           const targetYear = currentMonthDate.getFullYear();
-           const targetMonth = currentMonthDate.getMonth();
-           cutoffDate = new Date(targetYear, targetMonth, cutoff, 23, 59, 59, 999);
-       } else {
-           cutoffDate = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 0, 23, 59, 59, 999);
-       }
-       return txDate > cutoffDate;
-    }).reduce((acc, tx) => acc + tx.amount, 0);
-    
-    // MSIs que NO han sido facturados (Evaluados usando la fecha del mes actual)
-    const unbilledMSI = ccTxs.filter(tx => tx.type === 'expense' && tx.isMSI).reduce((acc, tx) => acc + calculateRemainingMSIDebt(tx, currentMonthDate), 0);
+       return txDate <= currentStatementCutoff;
+    }).reduce((sum, tx) => sum + tx.amount, 0);
 
-    // Saldo a pagar = Todo lo facturado hasta HOY (Deuda Real descontando la porción "No Facturada" aún)
-    let currentStatementDebt = Math.max(0, actualDebt - unbilledRegular - unbilledMSI);
+    // Sumar MSI aplicables a este mes corriente
+    const statementMSI = calculateMSIForMonth(ccTxs.filter(tx => tx.isMSI), currentMonthDate);
+
+    // El saldo a pagar usa toda la deuda regular facturada más el MSI del mes, descontando TODOS los pagos históricos.
+    // Esto previene que ingresos recientes borren el estado de cuenta entero ("A pagar: $0") de manera errónea, 
+    // y al mismo tiempo arrastra saldos vencidos de cortes pasados.
+    let currentStatementDebt = Math.max(0, billedRegularExpenses + statementMSI - ccPayments);
     currentStatementDebt = Math.min(currentStatementDebt, actualDebt);
 
-    // Gastos compartidos del corte actual para el widget
+    // Identificar gastos compartidos del corte actual
     const sharedTxs = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI || !tx.isShared || !tx.borrowerName) return false;
        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
-       if (cc.cutoffDay) {
-           const cutoff = Number(cc.cutoffDay);
-           const targetYear = currentMonthDate.getFullYear();
-           const targetMonth = currentMonthDate.getMonth();
-           const currentStatementCutoff = new Date(targetYear, targetMonth, cutoff, 23, 59, 59, 999);
-           const previousStatementCutoff = new Date(targetYear, targetMonth - 1, cutoff, 23, 59, 59, 999);
-           return txDate > previousStatementCutoff && txDate <= currentStatementCutoff;
-       }
-       return isSameMonth(txDate, currentMonthDate);
+       return txDate > previousStatementCutoff && txDate <= currentStatementCutoff;
     });
 
     return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent, currentStatementDebt, sharedTxs };
