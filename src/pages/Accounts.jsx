@@ -278,56 +278,99 @@ export default function Accounts() {
 
                   {/* Lógica MSI Avanzada para Tarjetas de Crédito */}
                   {accountMSIs.length > 0 && (
-                    <div className="mt-6 pt-4 border-t border-dashed border-white/10">
-                      <h4 className="flex items-center gap-2 text-sm font-bold text-primary mb-3">
-                        <CalendarClock size={16} /> Compras Activas a Plazos (MSI)
-                      </h4>
-                      <div className="flex flex-col gap-3">
-                        {accountMSIs.map(tx => {
-                          const remainingDebt = calculateRemainingMSIDebt(tx);
-                          const isFullyPaid = remainingDebt <= 0;
-                          
-                          // endDate guardamos un Date de JS
-                          const endDate = tx.msiData.endDate.toDate ? tx.msiData.endDate.toDate() : new Date(tx.msiData.endDate);
-                          const monthsLeft = differenceInCalendarMonths(endDate, new Date());
-                          const progress = Math.min(100, Math.max(0, 100 - (monthsLeft / tx.msiData.totalMonths) * 100));
+                    <>
+                      {/* MSI Activas */}
+                      {accountMSIs.some(tx => calculateRemainingMSIDebt(tx) > 0) && (
+                        <div className="mt-6 pt-4 border-t border-dashed border-white/10">
+                          <h4 className="flex items-center gap-2 text-sm font-bold text-primary mb-3">
+                            <CalendarClock size={16} /> Compras Activas a Plazos (MSI)
+                          </h4>
+                          <div className="flex flex-col gap-3">
+                            {accountMSIs.filter(tx => calculateRemainingMSIDebt(tx) > 0).map(tx => {
+                              const remainingDebt = calculateRemainingMSIDebt(tx);
+                              const isFullyPaid = false;
+                              const endDate = tx.msiData.endDate.toDate ? tx.msiData.endDate.toDate() : new Date(tx.msiData.endDate);
+                              const monthsLeft = differenceInCalendarMonths(endDate, new Date());
+                              const progress = Math.min(100, Math.max(0, 100 - (monthsLeft / tx.msiData.totalMonths) * 100));
 
-                          return (
-                            <div key={tx.id} className="bg-black/20 p-3 rounded-xl border border-white/5">
-                              <div className="flex justify-between items-start text-sm mb-2">
-                                <div className="flex flex-col pr-2 overflow-hidden">
-                                  <span className="font-bold truncate" title={tx.description || tx.category}>{tx.description || tx.category}</span>
-                                  <span className="text-xs text-text-muted">Deuda Original: ${tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                </div>
-                                <div className="text-right flex-shrink-0">
-                                  <span className="font-black text-primary">${remainingDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                  <span className="block text-[10px] text-text-muted uppercase tracking-wider">Restante</span>
-                                </div>
-                              </div>
-                              
-                              <div className="w-full bg-black/40 rounded-full h-2 overflow-hidden mb-1 relative mt-2">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-500 ${isFullyPaid ? 'bg-success' : 'bg-primary'}`}
-                                  style={{ width: `${progress}%` }}
-                                ></div>
-                              </div>
-                              <div className="flex justify-between items-center mt-1">
-                                <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-white/70">
-                                  {tx.msiData.totalMonths} MSI
-                                </span>
-                                <p className="text-xs text-text-muted text-right">
-                                  {isFullyPaid ? (
-                                      <span className="text-success font-bold">¡Pagado!</span>
-                                  ) : (
+                              return (
+                                <div key={tx.id} className="bg-black/20 p-3 rounded-xl border border-white/5">
+                                  <div className="flex justify-between items-start text-sm mb-2">
+                                    <div className="flex flex-col pr-2 overflow-hidden">
+                                      <span className="font-bold truncate" title={tx.description || tx.category}>{tx.description || tx.category}</span>
+                                      <span className="text-xs text-text-muted">Deuda Original: ${tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      <span className="font-black text-primary">${remainingDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                      <span className="block text-[10px] text-text-muted uppercase tracking-wider">Restante</span>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="w-full bg-black/40 rounded-full h-2 overflow-hidden mb-1 relative mt-2">
+                                    <div
+                                      className="h-full rounded-full transition-all duration-500 bg-primary"
+                                      style={{ width: `${progress}%` }}
+                                    ></div>
+                                  </div>
+                                  <div className="flex justify-between items-center mt-1">
+                                    <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-white/70">
+                                      {tx.msiData.totalMonths} MSI
+                                    </span>
+                                    <p className="text-xs text-text-muted text-right">
                                       <span>Faltan <span className="font-bold text-white">{monthsLeft <= 0 ? 0 : monthsLeft}</span> meses</span>
-                                  )}
-                                </p>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
+                                    </p>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* MSI Liquidadas */}
+                      {accountMSIs.some(tx => calculateRemainingMSIDebt(tx) <= 0) && (
+                        <div className="mt-6 pt-4 border-t border-dashed border-white/10 opacity-60">
+                          <h4 className="flex items-center gap-2 text-sm font-bold text-success mb-3">
+                            <CalendarClock size={16} /> Compras Liquidadas (MSI)
+                          </h4>
+                          <div className="flex flex-col gap-3">
+                            {accountMSIs.filter(tx => calculateRemainingMSIDebt(tx) <= 0).map(tx => {
+                              const isFullyPaid = true;
+
+                              return (
+                                <div key={tx.id} className="bg-success/10 p-3 rounded-xl border border-success/20">
+                                  <div className="flex justify-between items-start text-sm mb-2">
+                                    <div className="flex flex-col pr-2 overflow-hidden">
+                                      <span className="font-bold truncate text-success" title={tx.description || tx.category}>{tx.description || tx.category}</span>
+                                      <span className="text-xs text-text-muted">Deuda Original: ${tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      <span className="font-black text-success">$0.00</span>
+                                      <span className="block text-[10px] text-text-muted uppercase tracking-wider">Restante</span>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="w-full bg-black/40 rounded-full h-2 overflow-hidden mb-1 relative mt-2">
+                                    <div
+                                      className="h-full rounded-full transition-all duration-500 bg-success"
+                                      style={{ width: '100%' }}
+                                    ></div>
+                                  </div>
+                                  <div className="flex justify-between items-center mt-1">
+                                    <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-white/70">
+                                      {tx.msiData.totalMonths} MSI
+                                    </span>
+                                    <p className="text-xs text-success font-bold text-right">
+                                      ¡Pagado!
+                                    </p>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
 
                 </div>

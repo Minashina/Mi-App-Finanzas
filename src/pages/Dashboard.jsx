@@ -91,7 +91,7 @@ export default function Dashboard() {
 
   const handleOpenPayModal = (cc) => {
       setSelectedCC(cc);
-      setPayAmount(cc.currentStatementDebt.toFixed(2));
+      setPayAmount(cc.currentStatementDebt > 0 ? cc.currentStatementDebt.toFixed(2) : cc.totalDebt.toFixed(2));
       const debitAccounts = accounts.filter(a => a.type === 'debit' || a.type === 'cash');
       if (debitAccounts.length > 0) setSelectedDebitId(debitAccounts[0].id);
       setShowPayModal(true);
@@ -646,7 +646,7 @@ export default function Dashboard() {
                             <span className="text-danger font-bold text-xs uppercase tracking-wide block mb-1">A Pagar este Corte</span>
                             <span className="font-black text-2xl text-danger">${cc.currentStatementDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
-                        {cc.currentStatementDebt > 0 ? (
+                        {cc.currentStatementDebt > 0 || cc.totalDebt > 0 ? (
                             <button 
                                 onClick={() => handleOpenPayModal(cc)}
                                 className="bg-danger hover:bg-red-700 text-white font-bold py-2 px-6 rounded-xl transition-all shadow-lg hover:scale-105 w-full md:w-auto"
