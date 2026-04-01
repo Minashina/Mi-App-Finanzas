@@ -216,47 +216,37 @@ export default function Dashboard() {
         previousStatementCutoff = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), 0, 23, 59, 59, 999);
     }
 
-    // 1. Gastos regulares cobrables hasta el corte actual
-    const billedRegularTxs = ccTxs.filter(tx => {
+    // 1. Gastos regulares Anteriores al ciclo actual
+    const pastRegularTxs = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI) return false;
        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
-       return txDate <= currentStatementCutoff;
+       return txDate <= previousStatementCutoff;
     });
-    const billedRegularExpenses = billedRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
+    const pastRegularTotal = pastRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
 
-    // 2. Total original de todas las MSI para sacar lo que YA SE FACTURÓ históricamente
-    const originalMSI = ccTxs.filter(tx => tx.type === 'expense' && tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
-    const billedMSI = originalMSI - msiRemaining;
+    // Saldo anterior no liquidado (capado a 0. Si hay exceso de abonos, se asume fueron para MSIs pasados)
+    const pastBalance = Math.max(0, pastRegularTotal - ccPayments);
 
-    // 3. Gastos Totales Facturados de Por Vida (incluye MSIs viejos que no pagaron!)
-    const totalBilledExpenses = billedRegularExpenses + billedMSI;
-
-    // 4. El Saldo a Pagar al Corte estricto
-    let currentStatementDebt = Math.max(0, totalBilledExpenses - ccPayments);
-    currentStatementDebt = Math.min(currentStatementDebt, actualDebt);
-
-    // --- DESGLOSE PARA EL MODAL ---
-    // A) Transacciones Regulares de ESTE mes
-    const currentCycleRegularTxs = billedRegularTxs.filter(tx => {
+    // 2. Gastos regulares del ciclo actual
+    const currentCycleRegularTxs = ccTxs.filter(tx => {
+       if (tx.type !== 'expense' || tx.isMSI) return false;
        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
-       return txDate > previousStatementCutoff;
+       return txDate > previousStatementCutoff && txDate <= currentStatementCutoff;
     });
     const currentRegularTotal = currentCycleRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
 
-    // B) MSI de ESTE mes
-    const currentCycleMSITxs = ccTxs.filter(tx => {
-        if (tx.type !== 'expense' || !tx.isMSI) return false;
-        const msiThisMonth = calculateMSIForMonth([tx], currentMonthDate);
-        return msiThisMonth > 0;
-    }).map(tx => ({
-        ...tx,
-        msiAmountThisMonth: calculateMSIForMonth([tx], currentMonthDate)
-    }));
+    // 3. MSI Vigentes estrictamente para este mes actual
+    const currentCycleMSITxs = ccTxs.filter(tx => tx.type === 'expense' && tx.isMSI)
+        .map(tx => ({...tx, msiAmountThisMonth: calculateMSIForMonth([tx], currentMonthDate)}))
+        .filter(tx => tx.msiAmountThisMonth > 0);
     const currentMSITotal = currentCycleMSITxs.reduce((sum, tx) => sum + tx.msiAmountThisMonth, 0);
 
-    // C) Saldo Anterior (Todo lo viejo facturado MENOS todos los pagos!)
-    const previousBilledTotal = totalBilledExpenses - currentRegularTotal - currentMSITotal;
-    const pastBalance = previousBilledTotal - ccPayments;
+    // 4. El Saldo a Pagar al Corte 
+    // Es exactamente tu saldo vencido + lo de este ciclo + MSI de este ciclo.
+    let currentStatementDebt = pastBalance + currentRegularTotal + currentMSITotal;
+    
+    // Tope para que si liquidan la tarjeta completa a 0, este campo también marque 0.
+    currentStatementDebt = Math.min(currentStatementDebt, actualDebt);
 
     const breakdown = {
         pastBalance,
