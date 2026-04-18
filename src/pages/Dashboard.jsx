@@ -185,17 +185,17 @@ export default function Dashboard() {
   const creditUsage = creditCards.map(cc => {
     const ccTxs = transactions.filter(tx => tx.accountId === cc.id);
     
-    // Gastos directos de la TC (Histórico completo, incluyendo monto total original de MSI)
-    const allExpenses = ccTxs.filter(tx => tx.type === 'expense').reduce((acc, tx) => acc + tx.amount, 0);
+    // Gastos directos de la TC (Histórico completo)
+    const regularExpenses = ccTxs.filter(tx => tx.type === 'expense' && !tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
     
-    // Deuda MSI remanente (A usar para KPIs informativos, no resta a abonos globales)
+    // Deuda MSI remanente calculada según factor de tiempo (decaimiento orgánico)
     const msiRemaining = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateRemainingMSIDebt(tx), 0);
     
     // Pagos a la TC históricos
     const ccPayments = ccTxs.filter(tx => tx.type === 'income').reduce((acc, tx) => acc + tx.amount, 0);
     
-    // Deuda total de esta tarjeta (Todo lo comprado menos todo lo pagado)
-    const totalDebt = allExpenses - ccPayments;
+    // Deuda total de esta tarjeta (Restaurando compatibilidad con historial)
+    const totalDebt = (regularExpenses + msiRemaining) - ccPayments;
     const actualDebt = Math.max(0, totalDebt);
     
     totalCreditDebt += actualDebt;
@@ -207,7 +207,6 @@ export default function Dashboard() {
     if (cc.cutoffDay) {
         const cutoff = Number(cc.cutoffDay);
         lastClosedCutoff = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), cutoff, 23, 59, 59, 999);
-        // Si hoy es antes del día de corte de este mes, el último corte cerrado fue el del mes pasado
         if (currentMonthDate.getDate() < cutoff) {
             lastClosedCutoff.setMonth(lastClosedCutoff.getMonth() - 1);
         }
@@ -218,43 +217,42 @@ export default function Dashboard() {
     let prevClosedCutoff = new Date(lastClosedCutoff);
     prevClosedCutoff.setMonth(prevClosedCutoff.getMonth() - 1);
 
-    // Gastos no facturados (después del último corte)
-    const unbilledRegularTxs = ccTxs.filter(tx => {
-        if (tx.type !== 'expense' || tx.isMSI) return false;
-        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
-        return txDate > lastClosedCutoff;
-    });
-    const unbilledRegularTotal = unbilledRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
+    // LÓGICA DE DEDUCCIÓN EN CASCADA (WATERFALL) PARA COMPATIBILIDAD CON HISTORIAL
+    let remainingPayments = ccPayments;
 
-    // Para el Desglose Visual (Breakdown)
+    // 1. Pagar gastos regulares antiguos
+    const pastRegularTxs = ccTxs.filter(tx => {
+       if (tx.type !== 'expense' || tx.isMSI) return false;
+       const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+       return txDate <= prevClosedCutoff;
+    });
+    const pastRegularTotal = pastRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
+    const pastBalance = Math.max(0, pastRegularTotal - remainingPayments);
+    remainingPayments = Math.max(0, remainingPayments - pastRegularTotal);
+
+    // 2. Pagar gastos regulares del ciclo actual
     const currentCycleRegularTxs = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI) return false;
        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
        return txDate > prevClosedCutoff && txDate <= lastClosedCutoff;
     });
     const currentRegularTotal = currentCycleRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
+    const unpaidCurrentRegular = Math.max(0, currentRegularTotal - remainingPayments);
+    remainingPayments = Math.max(0, remainingPayments - currentRegularTotal);
 
+    // 3. Pagar MSI del ciclo actual
     const currentCycleMSITxs = ccTxs.filter(tx => tx.type === 'expense' && tx.isMSI)
         .map(tx => ({...tx, msiAmountThisMonth: calculateMSIForMonth([tx], lastClosedCutoff)}))
         .filter(tx => tx.msiAmountThisMonth > 0);
     const currentMSITotal = currentCycleMSITxs.reduce((sum, tx) => sum + tx.msiAmountThisMonth, 0);
+    const unpaidCurrentMSI = Math.max(0, currentMSITotal - remainingPayments);
 
-    // MSI No Facturados: (El total MSI Vivo a la fecha del corte)
-    const unbilledMSITotal = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => {
-        return acc + calculateRemainingMSIDebt(tx, lastClosedCutoff);
-    }, 0);
-
-    // 4. El Saldo a Pagar al Corte
-    // Deuda real total, menos cosas no cobradas aún.
-    let currentStatementDebt = Math.max(0, actualDebt - unbilledRegularTotal - unbilledMSITotal);
-    currentStatementDebt = Math.min(currentStatementDebt, actualDebt); // Safety limit
-
-    // Cálculo aritmético estricto para el desglose UI
-    const totalBilledSoFar = actualDebt + ccPayments - unbilledRegularTotal - unbilledMSITotal;
-    const historicalCharges = Math.max(0, totalBilledSoFar - currentRegularTotal - currentMSITotal);
+    // Saldo final a pagar en este corte
+    let currentStatementDebt = pastBalance + unpaidCurrentRegular + unpaidCurrentMSI;
+    currentStatementDebt = Math.min(currentStatementDebt, actualDebt); 
 
     const breakdown = {
-        historicalCharges,
+        historicalCharges: pastBalance,
         currentCycleRegularTxs,
         currentRegularTotal,
         currentCycleMSITxs,
