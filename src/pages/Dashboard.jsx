@@ -249,7 +249,6 @@ export default function Dashboard() {
 
     // Saldo final a pagar en este corte
     let currentStatementDebt = pastBalance + unpaidCurrentRegular + unpaidCurrentMSI;
-    currentStatementDebt = Math.min(currentStatementDebt, actualDebt); 
 
     // Ajuste cosmético para que la aritmética UI del BreakDown sume perfectamente
     const grossBilled = pastRegularTotal + currentRegularTotal + currentMSITotal;
@@ -271,7 +270,7 @@ export default function Dashboard() {
        return txDate > prevClosedCutoff && txDate <= lastClosedCutoff;
     });
 
-    return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent, currentStatementDebt, sharedTxs, breakdown };
+    return { ...cc, totalDebt: Math.max(actualDebt, currentStatementDebt), availableCredit, usagePercent, currentStatementDebt, sharedTxs, breakdown };
   });
 
   // SUMAR EL STATEMENT DEBT DE TODAS LAS TARJETAS PARA EL CÁLCULO
