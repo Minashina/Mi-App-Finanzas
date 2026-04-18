@@ -194,9 +194,9 @@ export default function Dashboard() {
     // Pagos a la TC históricos
     const ccPayments = ccTxs.filter(tx => tx.type === 'income').reduce((acc, tx) => acc + tx.amount, 0);
     
-    // Deuda total de esta tarjeta (Restaurando compatibilidad con historial)
-    const totalDebt = (regularExpenses + msiRemaining) - ccPayments;
-    const actualDebt = Math.max(0, totalDebt);
+    // Deuda total (Restaurando compatibilidad orgánica sin doble-resta de pagos)
+    const unpaidRegularOnly = Math.max(0, regularExpenses - ccPayments);
+    const actualDebt = unpaidRegularOnly + msiRemaining;
     
     totalCreditDebt += actualDebt;
     const availableCredit = Math.max(0, cc.creditLimit - actualDebt);
@@ -251,13 +251,17 @@ export default function Dashboard() {
     let currentStatementDebt = pastBalance + unpaidCurrentRegular + unpaidCurrentMSI;
     currentStatementDebt = Math.min(currentStatementDebt, actualDebt); 
 
+    // Ajuste cosmético para que la aritmética UI del BreakDown sume perfectamente
+    const grossBilled = pastRegularTotal + currentRegularTotal + currentMSITotal;
+    const visiblePayments = Math.min(ccPayments, grossBilled);
+
     const breakdown = {
-        historicalCharges: pastBalance,
+        historicalCharges: pastRegularTotal,
         currentCycleRegularTxs,
         currentRegularTotal,
         currentCycleMSITxs,
         currentMSITotal,
-        ccPayments
+        ccPayments: visiblePayments
     };
 
     // Identificar gastos compartidos del corte actual
@@ -730,8 +734,8 @@ export default function Dashboard() {
                 {/* Saldo Anterior */}
                 <div className="flex justify-between items-center pb-4 border-b border-white/10">
                     <div>
-                        <p className="font-bold text-white">Saldo Histórico</p>
-                        <p className="text-xs text-text-muted mt-1 leading-relaxed max-w-[250px]">El total facturado en periodos anteriores (cargo regular y MSIs históricos).</p>
+                        <p className="font-bold text-white">Saldo Histórico Generado</p>
+                        <p className="text-xs text-text-muted mt-1 leading-relaxed max-w-[250px]">El total de gastos regulares facturados en periodos pasados.</p>
                     </div>
                     <p className={`font-black text-xl text-white`}>
                         ${selectedBreakdownCC.breakdown.historicalCharges.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -784,8 +788,8 @@ export default function Dashboard() {
                 {/* Abonos */}
                 <div className="flex justify-between items-center py-4 border-y border-white/10 mt-2">
                     <div>
-                        <p className="font-bold text-success flex items-center gap-2">Pagos Realizados Totales</p>
-                        <p className="text-xs text-text-muted mt-1">Todos los abonos realizados a la tarjeta, amortizando tu deuda facturada.</p>
+                        <p className="font-bold text-success flex items-center gap-2">Pagos Aplicados al Corte</p>
+                        <p className="text-xs text-text-muted mt-1">Suma de tus abonos que han cubierto este saldo (hasta donde alcancen).</p>
                     </div>
                     <p className="font-black text-success text-xl">
                         -${selectedBreakdownCC.breakdown.ccPayments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
