@@ -217,23 +217,24 @@ export default function Dashboard() {
     let prevClosedCutoff = new Date(lastClosedCutoff);
     prevClosedCutoff.setMonth(prevClosedCutoff.getMonth() - 1);
 
-    // --- LÓGICA DE FACTURACIÓN EXACTA ---
-    // 1. Facturado en cortes anteriores
+    // --- LÓGICA DE ESTADO DE CUENTA (AISLAMIENTO TEMPORAL) ---
+    // 1. Histórico (Anteriores al corte)
     const pastRegularTxs = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI) return false;
        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
        return txDate <= prevClosedCutoff;
     });
     const pastRegularTotal = pastRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
-    
-    // Total de MSI histórico que HA vencido antes del ciclo actual
-    const pastMSITotal = ccTxs.filter(tx => tx.type === 'expense' && tx.isMSI).reduce((sum, tx) => {
-        const unbilled = calculateRemainingMSIDebt(tx, lastClosedCutoff);
-        const current = calculateMSIForMonth([tx], lastClosedCutoff);
-        return sum + Math.max(0, tx.amount - unbilled - current);
-    }, 0);
 
-    const pastBilledTotal = pastRegularTotal + pastMSITotal;
+    // Pagos previos al ciclo (hasta la fecha de cierre previa)
+    const pastPayments = ccTxs.filter(tx => {
+        if (tx.type !== 'income') return false;
+        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+        return txDate <= lastClosedCutoff;
+    }).reduce((sum, tx) => sum + tx.amount, 0);
+
+    // Saldo histórico arrastrado (se traga el exceso de abonos al vacío MSI)
+    const pastBalance = Math.max(0, pastRegularTotal - pastPayments);
 
     // 2. Facturado en el ciclo actual
     const currentCycleRegularTxs = ccTxs.filter(tx => {
@@ -248,18 +249,25 @@ export default function Dashboard() {
         .filter(tx => tx.msiAmountThisMonth > 0);
     const currentMSITotal = currentCycleMSITxs.reduce((sum, tx) => sum + tx.msiAmountThisMonth, 0);
 
-    // 3. El Saldo final a pagar
-    const grossBilled = pastBilledTotal + currentRegularTotal + currentMSITotal;
-    let currentStatementDebt = Math.max(0, grossBilled - ccPayments);
+    // 3. Pagos Recientes (Abonos hechos DESPUÉS del corte)
+    const recentPayments = ccTxs.filter(tx => {
+        if (tx.type !== 'income') return false;
+        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+        return txDate > lastClosedCutoff;
+    }).reduce((sum, tx) => sum + tx.amount, 0);
+
+    // 4. Saldo a Pagar este Corte
+    const grossCurrentStatement = pastBalance + currentRegularTotal + currentMSITotal;
+    let currentStatementDebt = Math.max(0, grossCurrentStatement - recentPayments);
 
     const breakdown = {
-        pastBilledTotal,
+        pastBalance,
         currentCycleRegularTxs,
         currentRegularTotal,
         currentCycleMSITxs,
         currentMSITotal,
-        grossBilled,
-        ccPayments
+        grossCurrentStatement,
+        recentPayments
     };
 
     // Identificar gastos compartidos del corte actual
@@ -735,8 +743,8 @@ export default function Dashboard() {
                     <h4 className="font-bold text-white mb-4 text-sm uppercase tracking-wider text-primary-light border-b border-white/10 pb-2">1. Resumen de Cargos Facturados</h4>
                     
                     <div className="flex justify-between items-center text-sm mb-3">
-                        <span className="text-text-muted cursor-help" title="Todo lo que se cobró en periodos anteriores (MSI pasados + Compras Regulares previas)">Cortes Históricos Acumulados</span>
-                        <span className="font-medium text-white">${selectedBreakdownCC.breakdown.pastBilledTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className="text-text-muted cursor-help" title="Saldo sin liquidar de cortes pasados">Saldo Arrancado de Cortes Anteriores</span>
+                        <span className="font-medium text-white">${selectedBreakdownCC.breakdown.pastBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     
                     <div className="flex flex-col mb-3">
@@ -774,27 +782,27 @@ export default function Dashboard() {
                     </div>
                     
                     <div className="pt-3 border-t border-white/10 flex justify-between items-center bg-white/5 -mx-4 -mb-4 p-4 rounded-b-2xl mt-2">
-                        <span className="font-bold text-white text-sm">Suma Facturada Histórica</span>
-                        <span className="font-black text-white text-lg">${selectedBreakdownCC.breakdown.grossBilled.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className="font-bold text-white text-sm">Suma Exigible del Corte</span>
+                        <span className="font-black text-white text-lg">${selectedBreakdownCC.breakdown.grossCurrentStatement.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                 </div>
 
                 {/* SECCIÓN 2: Abonos */}
                 <div className="bg-black/20 p-4 md:p-5 rounded-2xl border border-white/5">
-                    <h4 className="font-bold text-white mb-4 text-sm uppercase tracking-wider text-success border-b border-white/10 pb-2">2. Tus Abonos / Aportaciones</h4>
+                    <h4 className="font-bold text-white mb-4 text-sm uppercase tracking-wider text-success border-b border-white/10 pb-2">2. Tus Abonos / Pagos</h4>
                     
                     <div className="flex justify-between items-center text-sm">
-                        <span className="text-text-muted">Total de Pagos Registrados</span>
-                        <span className="font-black text-success text-xl">-${selectedBreakdownCC.breakdown.ccPayments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className="text-text-muted">Pagos hechos DESPUÉS del corte</span>
+                        <span className="font-black text-success text-xl">-${selectedBreakdownCC.breakdown.recentPayments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
 
-                    {selectedBreakdownCC.breakdown.ccPayments > selectedBreakdownCC.breakdown.grossBilled && (
+                    {selectedBreakdownCC.breakdown.recentPayments > selectedBreakdownCC.breakdown.grossCurrentStatement && (
                         <div className="pt-3 border-t border-white/10 flex justify-between items-center mt-4">
                             <div>
                                 <span className="font-bold text-blue-400 text-xs block">Aportación Adelantada / Saldo a Favor</span>
-                                <span className="text-[10px] text-text-muted leading-tight block mt-0.5">Cubrió todo el corte y adelantó capital.</span>
+                                <span className="text-[10px] text-text-muted leading-tight block mt-0.5">Cubrió todo el corte y el excedente va a deuda total.</span>
                             </div>
-                            <span className="font-black text-blue-400 text-lg">+${(selectedBreakdownCC.breakdown.ccPayments - selectedBreakdownCC.breakdown.grossBilled).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className="font-black text-blue-400 text-lg">+${(selectedBreakdownCC.breakdown.recentPayments - selectedBreakdownCC.breakdown.grossCurrentStatement).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                     )}
                 </div>
@@ -803,7 +811,7 @@ export default function Dashboard() {
                 <div className="bg-danger/10 border border-danger/20 p-5 rounded-2xl flex justify-between items-center shadow-[0_0_20px_rgba(244,63,94,0.1)]">
                     <div>
                         <span className="font-black text-danger uppercase tracking-wider text-sm flex items-center gap-2"><CreditCard size={18}/> A Pagar este Corte</span>
-                        <span className="text-xs text-danger/70 mt-1 block">Facturado menos Abonos</span>
+                        <span className="text-xs text-danger/70 mt-1 block">Exigible menos abonos recientes</span>
                     </div>
                     <span className="font-black text-3xl text-danger">${selectedBreakdownCC.currentStatementDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
