@@ -185,82 +185,88 @@ export default function Dashboard() {
   const creditUsage = creditCards.map(cc => {
     const ccTxs = transactions.filter(tx => tx.accountId === cc.id);
     
-    // Gastos directos de la TC (Histórico completo)
-    const regularExpenses = ccTxs.filter(tx => tx.type === 'expense' && !tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
+    // Gastos directos de la TC (Histórico completo, incluyendo monto total original de MSI)
+    const allExpenses = ccTxs.filter(tx => tx.type === 'expense').reduce((acc, tx) => acc + tx.amount, 0);
     
-    // Deuda MSI remanente calculada según factor de tiempo
+    // Deuda MSI remanente (A usar para KPIs informativos, no resta a abonos globales)
     const msiRemaining = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateRemainingMSIDebt(tx), 0);
     
     // Pagos a la TC históricos
     const ccPayments = ccTxs.filter(tx => tx.type === 'income').reduce((acc, tx) => acc + tx.amount, 0);
     
-    // Deuda total de esta tarjeta
-    const totalDebt = (regularExpenses + msiRemaining) - ccPayments;
+    // Deuda total de esta tarjeta (Todo lo comprado menos todo lo pagado)
+    const totalDebt = allExpenses - ccPayments;
     const actualDebt = Math.max(0, totalDebt);
     
     totalCreditDebt += actualDebt;
     const availableCredit = Math.max(0, cc.creditLimit - actualDebt);
     const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
 
-    // --- CÁLCULO DE ESTADO DE CUENTA ACTUAL E HISTÓRICO ---
-    let currentStatementCutoff = new Date();
-    let previousStatementCutoff = new Date();
+    // --- CÁLCULO DE ESTADO DE CUENTA (ÚLTIMO CORTE CERRADO) ---
+    let lastClosedCutoff = new Date(currentMonthDate);
     if (cc.cutoffDay) {
         const cutoff = Number(cc.cutoffDay);
-        const targetYear = currentMonthDate.getFullYear();
-        const targetMonth = currentMonthDate.getMonth();
-        currentStatementCutoff = new Date(targetYear, targetMonth, cutoff, 23, 59, 59, 999);
-        previousStatementCutoff = new Date(targetYear, targetMonth - 1, cutoff, 23, 59, 59, 999);
+        lastClosedCutoff = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), cutoff, 23, 59, 59, 999);
+        // Si hoy es antes del día de corte de este mes, el último corte cerrado fue el del mes pasado
+        if (currentMonthDate.getDate() < cutoff) {
+            lastClosedCutoff.setMonth(lastClosedCutoff.getMonth() - 1);
+        }
     } else {
-        currentStatementCutoff = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 0, 23, 59, 59, 999);
-        previousStatementCutoff = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), 0, 23, 59, 59, 999);
+        lastClosedCutoff = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 0, 23, 59, 59, 999);
     }
+    
+    let prevClosedCutoff = new Date(lastClosedCutoff);
+    prevClosedCutoff.setMonth(prevClosedCutoff.getMonth() - 1);
 
-    // 1. Gastos regulares Anteriores al ciclo actual
-    const pastRegularTxs = ccTxs.filter(tx => {
-       if (tx.type !== 'expense' || tx.isMSI) return false;
-       const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
-       return txDate <= previousStatementCutoff;
+    // Gastos no facturados (después del último corte)
+    const unbilledRegularTxs = ccTxs.filter(tx => {
+        if (tx.type !== 'expense' || tx.isMSI) return false;
+        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+        return txDate > lastClosedCutoff;
     });
-    const pastRegularTotal = pastRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
+    const unbilledRegularTotal = unbilledRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
 
-    // Saldo anterior no liquidado (capado a 0. Si hay exceso de abonos, se asume fueron para MSIs pasados)
-    const pastBalance = Math.max(0, pastRegularTotal - ccPayments);
-
-    // 2. Gastos regulares del ciclo actual
+    // Para el Desglose Visual (Breakdown)
     const currentCycleRegularTxs = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI) return false;
        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
-       return txDate > previousStatementCutoff && txDate <= currentStatementCutoff;
+       return txDate > prevClosedCutoff && txDate <= lastClosedCutoff;
     });
     const currentRegularTotal = currentCycleRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
 
-    // 3. MSI Vigentes estrictamente para este mes actual
     const currentCycleMSITxs = ccTxs.filter(tx => tx.type === 'expense' && tx.isMSI)
-        .map(tx => ({...tx, msiAmountThisMonth: calculateMSIForMonth([tx], currentMonthDate)}))
+        .map(tx => ({...tx, msiAmountThisMonth: calculateMSIForMonth([tx], lastClosedCutoff)}))
         .filter(tx => tx.msiAmountThisMonth > 0);
     const currentMSITotal = currentCycleMSITxs.reduce((sum, tx) => sum + tx.msiAmountThisMonth, 0);
 
-    // 4. El Saldo a Pagar al Corte 
-    // Es exactamente tu saldo vencido + lo de este ciclo + MSI de este ciclo.
-    let currentStatementDebt = pastBalance + currentRegularTotal + currentMSITotal;
-    
-    // Tope para que si liquidan la tarjeta completa a 0, este campo también marque 0.
-    currentStatementDebt = Math.min(currentStatementDebt, actualDebt);
+    // MSI No Facturados: (El total MSI Vivo a la fecha del corte)
+    const unbilledMSITotal = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => {
+        return acc + calculateRemainingMSIDebt(tx, lastClosedCutoff);
+    }, 0);
+
+    // 4. El Saldo a Pagar al Corte
+    // Deuda real total, menos cosas no cobradas aún.
+    let currentStatementDebt = Math.max(0, actualDebt - unbilledRegularTotal - unbilledMSITotal);
+    currentStatementDebt = Math.min(currentStatementDebt, actualDebt); // Safety limit
+
+    // Cálculo aritmético estricto para el desglose UI
+    const totalBilledSoFar = actualDebt + ccPayments - unbilledRegularTotal - unbilledMSITotal;
+    const historicalCharges = Math.max(0, totalBilledSoFar - currentRegularTotal - currentMSITotal);
 
     const breakdown = {
-        pastBalance,
+        historicalCharges,
         currentCycleRegularTxs,
         currentRegularTotal,
         currentCycleMSITxs,
-        currentMSITotal
+        currentMSITotal,
+        ccPayments
     };
 
     // Identificar gastos compartidos del corte actual
     const sharedTxs = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI || !tx.isShared || !tx.borrowerName) return false;
        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
-       return txDate > previousStatementCutoff && txDate <= currentStatementCutoff;
+       return txDate > prevClosedCutoff && txDate <= lastClosedCutoff;
     });
 
     return { ...cc, totalDebt: actualDebt, availableCredit, usagePercent, currentStatementDebt, sharedTxs, breakdown };
@@ -726,16 +732,16 @@ export default function Dashboard() {
                 {/* Saldo Anterior */}
                 <div className="flex justify-between items-center pb-4 border-b border-white/10">
                     <div>
-                        <p className="font-bold text-white">Saldo Anterior No Liquidado</p>
-                        <p className="text-xs text-text-muted mt-1 leading-relaxed max-w-[250px]">Gastos y cortes históricos (incluyendo MSIs caducados) menos todos tus abonos a la fecha.</p>
+                        <p className="font-bold text-white">Saldo Histórico</p>
+                        <p className="text-xs text-text-muted mt-1 leading-relaxed max-w-[250px]">El total facturado en periodos anteriores (cargo regular y MSIs históricos).</p>
                     </div>
-                    <p className={`font-black text-xl ${selectedBreakdownCC.breakdown.pastBalance > 0 ? 'text-danger' : 'text-success'}`}>
-                        ${selectedBreakdownCC.breakdown.pastBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <p className={`font-black text-xl text-white`}>
+                        ${selectedBreakdownCC.breakdown.historicalCharges.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                 </div>
 
                 {/* Compras este mes */}
-                <div>
+                <div className="mt-4">
                     <p className="font-bold text-white mb-3">Compras Regulares del Ciclo</p>
                     {selectedBreakdownCC.breakdown.currentCycleRegularTxs.length === 0 ? (
                         <p className="text-sm text-text-muted italic border border-white/5 bg-black/20 p-3 rounded-xl border-dashed">No hay compras regulares en este corte.</p>
@@ -777,8 +783,19 @@ export default function Dashboard() {
                     </div>
                 </div>
 
+                {/* Abonos */}
+                <div className="flex justify-between items-center py-4 border-y border-white/10 mt-2">
+                    <div>
+                        <p className="font-bold text-success flex items-center gap-2">Pagos Realizados Totales</p>
+                        <p className="text-xs text-text-muted mt-1">Todos los abonos realizados a la tarjeta, amortizando tu deuda facturada.</p>
+                    </div>
+                    <p className="font-black text-success text-xl">
+                        -${selectedBreakdownCC.breakdown.ccPayments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                </div>
+
                 {/* Total */}
-                <div className="bg-danger/10 border border-danger/20 p-5 rounded-2xl flex justify-between items-center mt-2 shadow-[0_0_20px_rgba(244,63,94,0.1)]">
+                <div className="bg-danger/10 border border-danger/20 p-5 rounded-2xl flex justify-between items-center mt-4 shadow-[0_0_20px_rgba(244,63,94,0.1)]">
                     <span className="font-black text-danger uppercase tracking-wider text-sm flex items-center gap-2"><CreditCard size={18}/> A Pagar este Corte</span>
                     <span className="font-black text-3xl text-danger">${selectedBreakdownCC.currentStatementDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
