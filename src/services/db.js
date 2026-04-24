@@ -1,5 +1,6 @@
 import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy, getDoc, increment, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { toJSDate } from '../utils/format';
 
 const ACCOUNTS_COL = 'accounts';
 const TRANSACTIONS_COL = 'transactions';
@@ -88,8 +89,8 @@ export const getTransactions = async () => {
   const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   // Ordenado local para no obligar a un índice compuesto inmediato en la demo
   return data.sort((a, b) => {
-      const dateA = a.date.toDate ? a.date.toDate() : new Date(a.date);
-      const dateB = b.date.toDate ? b.date.toDate() : new Date(b.date);
+      const dateA = toJSDate(a.date);
+      const dateB = toJSDate(b.date);
       return dateB.getTime() - dateA.getTime();
   });
 };

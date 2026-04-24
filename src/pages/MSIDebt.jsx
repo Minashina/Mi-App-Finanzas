@@ -5,6 +5,7 @@ import { CalendarSync, DollarSign, HelpCircle } from 'lucide-react';
 import { startTour } from '../utils/tourConfig';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { toJSDate } from '../utils/format';
 
 export default function MSIDebt() {
   const { transactions } = useFinance();
@@ -12,7 +13,7 @@ export default function MSIDebt() {
   const msiTransactions = useMemo(() => {
     return transactions.filter(tx => tx.isMSI).map(tx => ({
       ...tx,
-      date: tx.date.toDate ? tx.date.toDate() : new Date(tx.date)
+      date: toJSDate(tx.date)
     }));
   }, [transactions]);
 

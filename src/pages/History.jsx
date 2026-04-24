@@ -3,6 +3,7 @@ import { useFinance } from '../context/FinanceContext';
 import { deleteTransaction } from '../services/db';
 import { List, Trash2, ArrowUpRight, ArrowDownRight, HelpCircle } from 'lucide-react';
 import { startTour } from '../utils/tourConfig';
+import { toJSDate } from '../utils/format';
 
 export default function History() {
   const { transactions, accounts, refreshData } = useFinance();
@@ -59,7 +60,7 @@ export default function History() {
                 {transactions.map(tx => {
                   const isExpense = tx.type === 'expense';
                   // Las fechas en Firestore son Timestamps
-                  const dateObj = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+                  const dateObj = toJSDate(tx.date);
                   const formattedDate = dateObj.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
                   
                   return (

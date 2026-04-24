@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { useToast } from '../context/ToastContext';
 import { addFixedExpense, deleteFixedExpense, addTransaction } from '../services/db';
+import { formatAmountInput, toJSDate } from '../utils/format';
 import { CalendarClock, PlusCircle, Trash2, Home, Wifi, Zap, Droplets, CheckCircle2, ArrowRight, HelpCircle } from 'lucide-react';
 import { isSameMonth } from 'date-fns';
 import { startTour } from '../utils/tourConfig';
@@ -23,31 +24,7 @@ export default function FixedExpenses() {
   const [payData, setPayData] = useState({ accountId: '', amount: '' });
   const [payDisplayAmount, setPayDisplayAmount] = useState('');
 
-  const handleAmountChange = (e, setter, displaySetter) => {
-      // Remove everything except numbers and decimal point
-      const rawValue = e.target.value.replace(/[^0-9.]/g, '');
-      
-      // Prevent multiple decimal points
-      const parts = rawValue.split('.');
-      if (parts.length > 2) return;
-      
-      setter(rawValue);
-
-      // Format for display
-      if (rawValue === '') {
-          displaySetter('');
-          return;
-      }
-
-      if (parts.length === 2) {
-          // Has decimal part
-          const formattedInt = new Intl.NumberFormat('en-US').format(parts[0] || '0');
-          displaySetter(`${formattedInt}.${parts[1]}`);
-      } else {
-          // No decimal part
-          displaySetter(new Intl.NumberFormat('en-US').format(rawValue));
-      }
-  };
+  const handleAmountChange = formatAmountInput;
   const [payingExpenseId, setPayingExpenseId] = useState(null);
 
   const categories = ['Vivienda', 'Servicios', 'Suscripciones', 'Seguros', 'Educación', 'Otros'];
@@ -232,7 +209,7 @@ export default function FixedExpenses() {
                         {fixedExpenses.map(exp => {
                             // Revisar cuánto ya se pagó este mes
                             const amountPaidThisMonth = transactions
-                                .filter(tx => tx.fixedExpenseId === exp.id && tx.type === 'expense' && isSameMonth(tx.date.toDate ? tx.date.toDate() : new Date(tx.date), currentMonthDate))
+                                .filter(tx => tx.fixedExpenseId === exp.id && tx.type === 'expense' && isSameMonth(toJSDate(tx.date), currentMonthDate))
                                 .reduce((acc, tx) => acc + tx.amount, 0);
 
                             const remainingAmount = exp.amount - amountPaidThisMonth;

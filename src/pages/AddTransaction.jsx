@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { useToast } from '../context/ToastContext';
 import { addTransaction, addCategory, getCustomCategories } from '../services/db';
+import { formatAmountInput } from '../utils/format';
 import { calculateMSIPeriod } from '../utils/msi';
 import { PlusCircle, Tag, HelpCircle } from 'lucide-react';
 import { startTour } from '../utils/tourConfig';
@@ -33,25 +34,8 @@ export default function AddTransaction() {
 
   const [displayAmount, setDisplayAmount] = useState('');
 
-  const handleAmountChange = (e) => {
-      const rawValue = e.target.value.replace(/[^0-9.]/g, '');
-      const parts = rawValue.split('.');
-      if (parts.length > 2) return;
-      
-      setFormData({...formData, amount: rawValue});
-
-      if (rawValue === '') {
-          setDisplayAmount('');
-          return;
-      }
-
-      if (parts.length === 2) {
-          const formattedInt = new Intl.NumberFormat('en-US').format(parts[0] || '0');
-          setDisplayAmount(`${formattedInt}.${parts[1]}`);
-      } else {
-          setDisplayAmount(new Intl.NumberFormat('en-US').format(rawValue));
-      }
-  };
+  const handleAmountChange = (e) =>
+      formatAmountInput(e, (val) => setFormData(prev => ({ ...prev, amount: val })), setDisplayAmount);
 
   const selectedAccount = accounts.find(a => a.id === formData.accountId);
   const isCreditCard = selectedAccount?.type === 'credit';

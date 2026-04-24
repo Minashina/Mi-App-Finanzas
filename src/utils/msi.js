@@ -1,4 +1,5 @@
 import { isWithinInterval, parseISO, startOfMonth, endOfMonth, addMonths, differenceInMonths, differenceInCalendarMonths, isBefore, isAfter, format } from 'date-fns';
+import { toJSDate } from './format';
 
 export const calculateMSIForMonth = (transactions, targetMonth = new Date()) => {
   const targetStart = startOfMonth(targetMonth);
@@ -88,7 +89,7 @@ export const calculateRemainingMSIDebt = (tx, targetDate = new Date()) => {
   const today = targetDate;
   
   // La endDate es la fecha donde termina de pagar
-  const endDate = tx.msiData.endDate.toDate ? tx.msiData.endDate.toDate() : new Date(tx.msiData.endDate);
+  const endDate = toJSDate(tx.msiData.endDate);
   
   // Si ya pasamos la endDate, ya no debe nada
   if (isAfter(today, endDate)) {

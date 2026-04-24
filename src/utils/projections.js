@@ -1,4 +1,5 @@
 import { getDaysInMonth, getDate, format } from 'date-fns';
+import { toJSDate } from './format';
 
 /**
  * Calcula el "Burn Rate" (Ritmo de Gasto) del mes actual.
@@ -51,7 +52,7 @@ export const calculateProjectedBalance = (thisMonthTxs, currentBalance, unpaidFi
     }
     
     thisMonthTxs.forEach(tx => {
-        const date = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+        const date = toJSDate(tx.date);
         const day = getDate(date);
         if (tx.type === 'expense') {
             txsByDay[day].expense += tx.amount;

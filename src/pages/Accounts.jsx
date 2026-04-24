@@ -6,15 +6,8 @@ import { CreditCard, Wallet, Landmark, Trash2, CalendarClock, Edit2, Palette, He
 import { differenceInCalendarMonths } from 'date-fns';
 import { calculateRemainingMSIDebt } from '../utils/msi';
 import { startTour } from '../utils/tourConfig';
-
-const ACCOUNT_COLORS = [
-  { name: 'Predeterminado', value: 'default', hex: 'bg-surface border-white/5', baseIcon: 'bg-gray-500' },
-  { name: 'Rojo Carmesí', value: 'red', hex: 'bg-red-900/20 border-red-500/30', baseIcon: 'bg-red-500' },
-  { name: 'Azul Océano', value: 'blue', hex: 'bg-blue-900/20 border-blue-500/30', baseIcon: 'bg-blue-500' },
-  { name: 'Verde Esmeralda', value: 'green', hex: 'bg-green-900/20 border-green-500/30', baseIcon: 'bg-green-500' },
-  { name: 'Morado Real', value: 'purple', hex: 'bg-purple-900/20 border-purple-500/30', baseIcon: 'bg-purple-500' },
-  { name: 'Naranja Cobre', value: 'orange', hex: 'bg-orange-900/20 border-orange-500/30', baseIcon: 'bg-orange-500' }
-];
+import { ACCOUNT_COLORS } from '../utils/constants';
+import { toJSDate } from '../utils/format';
 
 export default function Accounts() {
   const { accounts, transactions, refreshData } = useFinance();
@@ -291,7 +284,7 @@ export default function Accounts() {
                             {accountMSIs.filter(tx => calculateRemainingMSIDebt(tx) > 0).map(tx => {
                               const remainingDebt = calculateRemainingMSIDebt(tx);
                               const isFullyPaid = false;
-                              const endDate = tx.msiData.endDate.toDate ? tx.msiData.endDate.toDate() : new Date(tx.msiData.endDate);
+                              const endDate = toJSDate(tx.msiData.endDate);
                               const monthsLeft = differenceInCalendarMonths(endDate, new Date());
                               const progress = Math.min(100, Math.max(0, 100 - (monthsLeft / tx.msiData.totalMonths) * 100));
 

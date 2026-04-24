@@ -8,6 +8,8 @@ import { startTour } from '../utils/tourConfig';
 import { payCreditCard } from '../services/db';
 import { getFinancialAdvice } from '../services/ai';
 import { useToast } from '../context/ToastContext';
+import { toJSDate } from '../utils/format';
+import { ACCOUNT_COLOR_CLASSES } from '../utils/constants';
 import BurnRateIndicator from '../components/BurnRateIndicator';
 import ProjectedBalanceChart from '../components/ProjectedBalanceChart';
 import { calculateBurnRate, calculateProjectedBalance } from '../utils/projections';
@@ -26,15 +28,6 @@ const safeCutoffDate = (year, month, day) => {
     return new Date(year, month, Math.min(day, lastDay), 23, 59, 59, 999);
 };
 
-// Colors for Accounts
-const ACCOUNT_COLORS = {
-    'default': 'bg-surface border-white/5',
-    'red': 'bg-red-900/20 border-red-500/30',
-    'blue': 'bg-blue-900/20 border-blue-500/30',
-    'green': 'bg-green-900/20 border-green-500/30',
-    'purple': 'bg-purple-900/20 border-purple-500/30',
-    'orange': 'bg-orange-900/20 border-orange-500/30'
-};
 
 export default function Dashboard() {
   const { accounts, transactions, fixedExpenses, savings, refreshData } = useFinance();
@@ -134,7 +127,7 @@ export default function Dashboard() {
   // 1. Filtrar Transacciones del Mes
   const thisMonthTxs = useMemo(() => {
     return transactions.filter(tx => 
-        isSameMonth(tx.date.toDate ? tx.date.toDate() : new Date(tx.date), currentMonthDate)
+        isSameMonth(toJSDate(tx.date), currentMonthDate)
     );
   }, [transactions]);
 
@@ -145,7 +138,7 @@ export default function Dashboard() {
         const acc = accounts.find(a => a.id === tx.accountId);
         if (!acc || acc.type !== 'credit') return false;
 
-        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+        const txDate = toJSDate(tx.date);
         
         if (acc.cutoffDay) {
              const cutoff = Number(acc.cutoffDay);
@@ -171,7 +164,7 @@ export default function Dashboard() {
   const msiTxs = useMemo(() => {
     return transactions.filter(tx => tx.isMSI).map(tx => ({
         ...tx,
-        date: tx.date.toDate ? tx.date.toDate() : new Date(tx.date)
+        date: toJSDate(tx.date)
     }));
   }, [transactions]);
   
@@ -251,7 +244,7 @@ export default function Dashboard() {
     // 1. Histórico (Anteriores al corte)
     const pastRegularTxs = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI) return false;
-       const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+       const txDate = toJSDate(tx.date);
        return txDate <= prevClosedCutoff;
     });
     const pastRegularTotal = pastRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
@@ -259,7 +252,7 @@ export default function Dashboard() {
     // Pagos previos al ciclo (hasta la fecha de cierre previa)
     const pastPayments = ccTxs.filter(tx => {
         if (tx.type !== 'income') return false;
-        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+        const txDate = toJSDate(tx.date);
         return txDate <= lastClosedCutoff;
     }).reduce((sum, tx) => sum + tx.amount, 0);
 
@@ -269,7 +262,7 @@ export default function Dashboard() {
     // 2. Facturado en el ciclo actual
     const currentCycleRegularTxs = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI) return false;
-       const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+       const txDate = toJSDate(tx.date);
        return txDate > prevClosedCutoff && txDate <= lastClosedCutoff;
     });
     const currentRegularTotal = currentCycleRegularTxs.reduce((sum, tx) => sum + tx.amount, 0);
@@ -282,7 +275,7 @@ export default function Dashboard() {
     // 3. Pagos Recientes (Abonos hechos DESPUÉS del corte)
     const recentPayments = ccTxs.filter(tx => {
         if (tx.type !== 'income') return false;
-        const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+        const txDate = toJSDate(tx.date);
         return txDate > lastClosedCutoff;
     }).reduce((sum, tx) => sum + tx.amount, 0);
 
@@ -303,7 +296,7 @@ export default function Dashboard() {
     // Identificar gastos compartidos del corte actual
     const sharedTxs = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI || !tx.isShared || !tx.borrowerName) return false;
-       const txDate = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+       const txDate = toJSDate(tx.date);
        return txDate > prevClosedCutoff && txDate <= lastClosedCutoff;
     });
 
@@ -598,7 +591,7 @@ export default function Dashboard() {
             </h2>
             <div className="flex flex-col gap-4">
                 {accounts.filter(a => a.type === 'debit' || a.type === 'cash').map(acc => {
-                    const activeColorClass = ACCOUNT_COLORS[acc.color] || ACCOUNT_COLORS['default'];
+                    const activeColorClass = ACCOUNT_COLOR_CLASSES[acc.color] || ACCOUNT_COLOR_CLASSES['default'];
                     return (
                         <div key={acc.id} className={`p-4 rounded-2xl flex justify-between items-center border ${activeColorClass}`}>
                             <span className="font-semibold">{acc.name}</span>
@@ -656,7 +649,7 @@ export default function Dashboard() {
                     <div className="divide-y divide-white/5">
                         {recentExpenses.map((tx) => {
                             const acc = accounts.find(a => a.id === tx.accountId);
-                            const d = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+                            const d = toJSDate(tx.date);
                             return (
                                 <div key={tx.id} className="p-4 sm:p-5 flex justify-between items-center hover:bg-white/5 transition-colors">
                                     <div className="flex flex-col">
@@ -684,7 +677,7 @@ export default function Dashboard() {
             </h2>
             <div className="flex flex-col gap-4">
                 {creditUsage.map(cc => {
-                    const activeColorClass = ACCOUNT_COLORS[cc.color] || ACCOUNT_COLORS['default'];
+                    const activeColorClass = ACCOUNT_COLOR_CLASSES[cc.color] || ACCOUNT_COLOR_CLASSES['default'];
                     return (
                     <div key={cc.id} className={`p-5 rounded-3xl border shadow-lg ${activeColorClass}`}>
                         <div className="flex justify-between items-center mb-4">

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { useToast } from '../context/ToastContext';
 import { addSavingGoal, addFundsToSaving, withdrawFromSaving, deleteSavingGoal } from '../services/db';
+import { formatAmountInput, toJSDate } from '../utils/format';
 import { differenceInWeeks, differenceInMonths, isValid, parseISO } from 'date-fns';
 import { PiggyBank, Target, CalendarDays, Plus, PlusCircle, Wallet, ArrowRight, Trash2, Infinity as InfinityIcon, HelpCircle } from 'lucide-react';
 import { startTour } from '../utils/tourConfig';
@@ -42,25 +43,7 @@ export default function Savings() {
   const [displayFundAmount, setDisplayFundAmount] = useState('');
   const [displayWithdrawAmount, setDisplayWithdrawAmount] = useState('');
 
-  const formatNumberInput = (e, setter, displaySetter) => {
-      const rawValue = e.target.value.replace(/[^0-9.]/g, '');
-      const parts = rawValue.split('.');
-      if (parts.length > 2) return;
-      
-      setter(rawValue);
-
-      if (rawValue === '') {
-          displaySetter('');
-          return;
-      }
-
-      if (parts.length === 2) {
-          const formattedInt = new Intl.NumberFormat('en-US').format(parts[0] || '0');
-          displaySetter(`${formattedInt}.${parts[1]}`);
-      } else {
-          displaySetter(new Intl.NumberFormat('en-US').format(rawValue));
-      }
-  };
+  const formatNumberInput = formatAmountInput;
 
   const debitAccounts = accounts.filter(a => a.type === 'debit' || a.type === 'cash');
 
@@ -166,7 +149,7 @@ export default function Savings() {
     if (remaining <= 0) return 0;
     
     // Check Date format (firestore returns timestamps, react input returns string)
-    const end = deadline.toDate ? deadline.toDate() : new Date(deadline);
+    const end = toJSDate(deadline);
     const today = new Date();
     
     let periods = 1;
@@ -548,7 +531,7 @@ export default function Savings() {
                                                 <CalendarDays size={14}/> 
                                                 {(() => {
                                                     if(!goal.deadline) return '-';
-                                                    const d = goal.deadline.toDate ? goal.deadline.toDate() : new Date(goal.deadline);
+                                                    const d = toJSDate(goal.deadline);
                                                     return d.toLocaleDateString();
                                                 })()}
                                             </p>
