@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { calculateMSIForMonth, calculateRemainingMSIDebt, calculateBilledMSISoFar } from '../utils/msi';
+import { calculateMSIForMonth, calculateRemainingMSIDebt } from '../utils/msi';
 import { isSameMonth, format } from 'date-fns';
 import { LayoutDashboard, Wallet, PieChart as PieIcon, Clock3, HelpCircle, Sparkles, KeyRound } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -204,9 +204,9 @@ export default function Dashboard() {
         return toJSDate(tx.date) <= prevClosedCutoff;
     }).reduce((sum, tx) => sum + tx.amount, 0);
 
-    // Cuotas MSI facturadas ANTES del corte anterior (van al saldo arrastrado)
-    const pastMSITotal = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateBilledMSISoFar(tx, prevClosedCutoff), 0);
-    const pastBalance = Math.max(0, pastRegularTotal + pastMSITotal - pastPayments);
+    // El saldo arrastrado solo considera gastos regulares (no MSI) sin pagar de cortes anteriores.
+    // Las cuotas MSI pasadas ya están capturadas por el modelo orgánico (msiTotalRemaining).
+    const pastBalance = Math.max(0, pastRegularTotal - pastPayments);
 
     const currentCycleRegularTxs = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI) return false;
