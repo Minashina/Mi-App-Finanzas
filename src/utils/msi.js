@@ -77,6 +77,22 @@ export const calculateMSIPeriod = (transactionDate, months, cutoffDay = null) =>
 };
 
 /**
+ * Cuántas cuotas MSI ya se han facturado hasta targetDate (incluyendo el mes actual si aplica).
+ * Útil para calcular deuda real cuando los pagos están registrados en la app.
+ * @param {Object} tx - La transacción MSI
+ * @param {Date} targetDate - Fecha de corte (default: hoy)
+ * @returns {Number} Monto total facturado hasta esa fecha.
+ */
+export const calculateBilledMSISoFar = (tx, targetDate = new Date()) => {
+  if (!tx.isMSI || !tx.msiData?.startMonth) return 0;
+  const startDate = parseISO(`${tx.msiData.startMonth}-01`);
+  if (isAfter(startDate, targetDate)) return 0;
+  const monthsElapsed = differenceInCalendarMonths(targetDate, startDate) + 1;
+  const monthsBilled = Math.min(monthsElapsed, tx.msiData.totalMonths || 1);
+  return monthsBilled * (tx.msiData.monthlyAmount || 0);
+};
+
+/**
  * Calcula la deuda remanente real y ponderada en el tiempo de una transacción MSI.
  * @param {Object} tx - La transacción MSI
  * @param {Date} targetDate - Fecha hacia la cual calcular la deuda (default: hoy)

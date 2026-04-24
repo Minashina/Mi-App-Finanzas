@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
-import { calculateMSIForMonth, calculateRemainingMSIDebt } from '../utils/msi';
+import { calculateMSIForMonth, calculateRemainingMSIDebt, calculateBilledMSISoFar } from '../utils/msi';
 import { isSameMonth, format } from 'date-fns';
 import { LayoutDashboard, Wallet, PieChart as PieIcon, Clock3, HelpCircle, Sparkles, KeyRound } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -164,10 +164,11 @@ export default function Dashboard() {
   const creditUsage = creditCards.map(cc => {
     const ccTxs = transactions.filter(tx => tx.accountId === cc.id);
     const regularExpenses = ccTxs.filter(tx => tx.type === 'expense' && !tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
-    const msiRemaining = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateRemainingMSIDebt(tx), 0);
+    // Cuotas MSI ya facturadas hasta hoy (no futuras). Comparar contra pagos reales registrados
+    // da el saldo real en la tarjeta, igual que un estado de cuenta bancario.
+    const billedMSI = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateBilledMSISoFar(tx), 0);
     const ccPayments = ccTxs.filter(tx => tx.type === 'income').reduce((acc, tx) => acc + tx.amount, 0);
-    const unpaidRegularOnly = Math.max(0, regularExpenses - ccPayments);
-    const actualDebt = unpaidRegularOnly + msiRemaining;
+    const actualDebt = Math.max(0, regularExpenses + billedMSI - ccPayments);
     totalCreditDebt += actualDebt;
     const availableCredit = Math.max(0, cc.creditLimit - actualDebt);
     const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
@@ -212,7 +213,9 @@ export default function Dashboard() {
         return toJSDate(tx.date) <= prevClosedCutoff;
     }).reduce((sum, tx) => sum + tx.amount, 0);
 
-    const pastBalance = Math.max(0, pastRegularTotal - pastPayments);
+    // Cuotas MSI facturadas ANTES del corte anterior (van al saldo arrastrado)
+    const pastMSITotal = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateBilledMSISoFar(tx, prevClosedCutoff), 0);
+    const pastBalance = Math.max(0, pastRegularTotal + pastMSITotal - pastPayments);
 
     const currentCycleRegularTxs = ccTxs.filter(tx => {
        if (tx.type !== 'expense' || tx.isMSI) return false;
