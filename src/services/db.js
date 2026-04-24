@@ -1,4 +1,4 @@
-import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy, getDoc, increment } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy, getDoc, increment, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 
 const ACCOUNTS_COL = 'accounts';
@@ -54,25 +54,26 @@ export const deleteAccount = async (id) => {
 export const addTransaction = async (transactionData) => {
   const uid = getExpectedUid();
   const payload = { ...transactionData, uid };
-  
-  // 1. Actualizar saldo si la cuenta es de débito o efectivo
+
   const accountRef = doc(db, ACCOUNTS_COL, transactionData.accountId);
   const accountSnap = await getDoc(accountRef);
-  
+
+  const batch = writeBatch(db);
+
   if (accountSnap.exists()) {
       const account = accountSnap.data();
       if (account.type === 'debit' || account.type === 'cash') {
           const isExpense = transactionData.type === 'expense';
           const amountChange = isExpense ? -transactionData.amount : transactionData.amount;
-          await updateDoc(accountRef, {
-              balance: increment(amountChange)
-          });
+          batch.update(accountRef, { balance: increment(amountChange) });
       }
   }
 
-  // 2. Guardar la transacción
-  const docRef = await addDoc(collection(db, TRANSACTIONS_COL), payload);
-  return { id: docRef.id, ...payload };
+  const newTxRef = doc(collection(db, TRANSACTIONS_COL));
+  batch.set(newTxRef, payload);
+
+  await batch.commit();
+  return { id: newTxRef.id, ...payload };
 };
 
 export const getTransactions = async () => {
@@ -94,30 +95,28 @@ export const getTransactions = async () => {
 };
 
 export const deleteTransaction = async (id) => {
-  const docRef = doc(db, TRANSACTIONS_COL, id);
-  const snap = await getDoc(docRef);
-  
+  const txRef = doc(db, TRANSACTIONS_COL, id);
+  const snap = await getDoc(txRef);
+
+  const batch = writeBatch(db);
+
   if (snap.exists()) {
       const tx = snap.data();
-      
-      // Revertir el saldo si la cuenta es de débito o efectivo
       const accountRef = doc(db, ACCOUNTS_COL, tx.accountId);
       const accountSnap = await getDoc(accountRef);
-      
+
       if (accountSnap.exists()) {
           const account = accountSnap.data();
           if (account.type === 'debit' || account.type === 'cash') {
               const isExpense = tx.type === 'expense';
-              // Si era gasto lo sumamos de vuelta, si era ingreso lo restamos
-              const amountChange = isExpense ? tx.amount : -tx.amount; 
-              await updateDoc(accountRef, {
-                  balance: increment(amountChange)
-              });
+              const amountChange = isExpense ? tx.amount : -tx.amount;
+              batch.update(accountRef, { balance: increment(amountChange) });
           }
       }
   }
 
-  await deleteDoc(docRef);
+  batch.delete(txRef);
+  await batch.commit();
 };
 
 // ==========================================
@@ -189,22 +188,15 @@ export const getSavings = async () => {
 };
 
 export const addFundsToSaving = async (savingId, accountId, amount) => {
-    getExpectedUid(); // Check auth
-    
-    // 1. Restar fondos de la cuenta origen
-    const accountRef = doc(db, ACCOUNTS_COL, accountId);
-    await updateDoc(accountRef, {
-        balance: increment(-amount)
-    });
+    getExpectedUid();
 
-    // 2. Sumar fondos a la meta de ahorro
-    const savingRef = doc(db, SAVINGS_COL, savingId);
-    await updateDoc(savingRef, {
-        savedAmount: increment(amount)
-    });
+    const batch = writeBatch(db);
 
-    // 3. (Opcional) Guardar el movimiento en history para darle tracking al usuario
-    const txPayload = {
+    batch.update(doc(db, ACCOUNTS_COL, accountId), { balance: increment(-amount) });
+    batch.update(doc(db, SAVINGS_COL, savingId), { savedAmount: increment(amount) });
+
+    const newTxRef = doc(collection(db, TRANSACTIONS_COL));
+    batch.set(newTxRef, {
         amount,
         type: 'expense',
         category: 'Ahorro',
@@ -213,27 +205,21 @@ export const addFundsToSaving = async (savingId, accountId, amount) => {
         accountId,
         uid: auth.currentUser.uid,
         isMSI: false
-    };
-    await addDoc(collection(db, TRANSACTIONS_COL), txPayload);
+    });
+
+    await batch.commit();
 };
 
 export const withdrawFromSaving = async (savingId, accountId, amount) => {
-    getExpectedUid(); // Check auth
-    
-    // 1. Sumar fondos a la cuenta destino
-    const accountRef = doc(db, ACCOUNTS_COL, accountId);
-    await updateDoc(accountRef, {
-        balance: increment(amount)
-    });
+    getExpectedUid();
 
-    // 2. Restar fondos de la meta de ahorro
-    const savingRef = doc(db, SAVINGS_COL, savingId);
-    await updateDoc(savingRef, {
-        savedAmount: increment(-amount)
-    });
+    const batch = writeBatch(db);
 
-    // 3. (Opcional) Guardar el movimiento en history
-    const txPayload = {
+    batch.update(doc(db, ACCOUNTS_COL, accountId), { balance: increment(amount) });
+    batch.update(doc(db, SAVINGS_COL, savingId), { savedAmount: increment(-amount) });
+
+    const newTxRef = doc(collection(db, TRANSACTIONS_COL));
+    batch.set(newTxRef, {
         amount,
         type: 'income',
         category: 'Ahorro',
@@ -242,8 +228,9 @@ export const withdrawFromSaving = async (savingId, accountId, amount) => {
         accountId,
         uid: auth.currentUser.uid,
         isMSI: false
-    };
-    await addDoc(collection(db, TRANSACTIONS_COL), txPayload);
+    });
+
+    await batch.commit();
 };
 
 export const deleteSavingGoal = async (id) => {
@@ -258,8 +245,12 @@ export const deleteSavingGoal = async (id) => {
 export const payCreditCard = async (creditAccountId, debitAccountId, amount, monthString) => {
     getExpectedUid();
 
-    // 1. Gasto en la cuenta de débito
-    const expenseTx = {
+    const batch = writeBatch(db);
+
+    batch.update(doc(db, ACCOUNTS_COL, debitAccountId), { balance: increment(-amount) });
+
+    const expenseTxRef = doc(collection(db, TRANSACTIONS_COL));
+    batch.set(expenseTxRef, {
         amount,
         type: 'expense',
         category: 'Pago de Tarjeta',
@@ -268,10 +259,10 @@ export const payCreditCard = async (creditAccountId, debitAccountId, amount, mon
         accountId: debitAccountId,
         uid: auth.currentUser.uid,
         isMSI: false
-    };
+    });
 
-    // 2. Ingreso (Abono) en la tarjeta de crédito
-    const incomeTx = {
+    const incomeTxRef = doc(collection(db, TRANSACTIONS_COL));
+    batch.set(incomeTxRef, {
         amount,
         type: 'income',
         category: 'Pago de Tarjeta',
@@ -280,15 +271,7 @@ export const payCreditCard = async (creditAccountId, debitAccountId, amount, mon
         accountId: creditAccountId,
         uid: auth.currentUser.uid,
         isMSI: false
-    };
-
-    // Actualizamos el saldo de la cuenta de débito
-    const debitRef = doc(db, ACCOUNTS_COL, debitAccountId);
-    await updateDoc(debitRef, {
-        balance: increment(-amount)
     });
 
-    // Registramos ambos movimientos para el historial
-    await addDoc(collection(db, TRANSACTIONS_COL), expenseTx);
-    await addDoc(collection(db, TRANSACTIONS_COL), incomeTx);
+    await batch.commit();
 };

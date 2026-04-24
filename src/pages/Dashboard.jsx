@@ -13,6 +13,11 @@ import { calculateBurnRate, calculateProjectedBalance } from '../utils/projectio
 
 const COLORS = ['#8b5cf6', '#10b981', '#f43f5e', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6', '#8ebd4e'];
 
+const renderBold = (text) => {
+    const parts = text.split(/\*\*(.*?)\*\*/g);
+    return parts.map((part, i) => i % 2 === 1 ? <strong key={i}>{part}</strong> : part);
+};
+
 // Colors for Accounts
 const ACCOUNT_COLORS = {
     'default': 'bg-surface border-white/5',
@@ -954,19 +959,15 @@ export default function Dashboard() {
                     <div className="prose prose-invert prose-p:leading-relaxed max-w-none text-sm md:text-base">
                         {aiAdvice ? (
                            aiAdvice.split('\n').map((line, i) => {
-                               // Simple markdown rendering for AI response
                                if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
                                    const text = line.replace(/^[-*]\s/, '');
-                                   // Simple bold markdown parsing
-                                   const parsedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
                                    return <div key={i} className="flex gap-3 mb-4 last:mb-0 bg-white/5 p-4 rounded-xl items-start">
                                        <span className="text-pink-400 mt-1">•</span>
-                                       <span dangerouslySetInnerHTML={{ __html: parsedText }} />
+                                       <span>{renderBold(text)}</span>
                                    </div>
                                }
                                if (line.trim() !== "") {
-                                   const parsedLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                                   return <p key={i} className="mb-4" dangerouslySetInnerHTML={{__html: parsedLine}} />
+                                   return <p key={i} className="mb-4">{renderBold(line)}</p>
                                }
                                return null;
                            })
