@@ -7,6 +7,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recha
 import { startTour } from '../utils/tourConfig';
 import { payCreditCard } from '../services/db';
 import { getFinancialAdvice } from '../services/ai';
+import { useToast } from '../context/ToastContext';
 import BurnRateIndicator from '../components/BurnRateIndicator';
 import ProjectedBalanceChart from '../components/ProjectedBalanceChart';
 import { calculateBurnRate, calculateProjectedBalance } from '../utils/projections';
@@ -30,6 +31,7 @@ const ACCOUNT_COLORS = {
 
 export default function Dashboard() {
   const { accounts, transactions, fixedExpenses, savings, refreshData } = useFinance();
+  const showToast = useToast();
   const currentMonthDate = new Date();
 
   // UI / Modal State
@@ -116,7 +118,7 @@ export default function Dashboard() {
           refreshData();
       } catch (err) {
           console.error(err);
-          alert('Error al procesar pago');
+          showToast('Error al procesar pago', 'error');
       } finally {
           setIsPaying(false);
       }

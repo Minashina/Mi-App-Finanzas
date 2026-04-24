@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
+import { useToast } from '../context/ToastContext';
 import { addAccount, updateAccount, deleteAccount } from '../services/db';
 import { CreditCard, Wallet, Landmark, Trash2, CalendarClock, Edit2, Palette, HelpCircle } from 'lucide-react';
 import { differenceInCalendarMonths } from 'date-fns';
@@ -17,6 +18,7 @@ const ACCOUNT_COLORS = [
 
 export default function Accounts() {
   const { accounts, transactions, refreshData } = useFinance();
+  const showToast = useToast();
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -59,7 +61,7 @@ export default function Accounts() {
       refreshData();
     } catch (err) {
       console.error(err);
-      alert('Error guardando cuenta');
+      showToast('Error guardando cuenta', 'error');
     } finally {
       setLoading(false);
     }

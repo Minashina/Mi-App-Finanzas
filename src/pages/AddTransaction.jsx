@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
+import { useToast } from '../context/ToastContext';
 import { addTransaction, addCategory, getCustomCategories } from '../services/db';
 import { calculateMSIPeriod } from '../utils/msi';
 import { PlusCircle, Tag, HelpCircle } from 'lucide-react';
@@ -9,6 +10,7 @@ const DEFAULT_CATEGORIES = ['Comida', 'Transporte', 'Entretenimiento', 'Salud', 
 
 export default function AddTransaction() {
   const { accounts, refreshData } = useFinance();
+  const showToast = useToast();
   const [loading, setLoading] = useState(false);
   
   // Categorías Híbridas
@@ -78,7 +80,7 @@ export default function AddTransaction() {
       setNewCatName('');
       setIsAddingCat(false);
     } catch (err) {
-      alert("Error guardando la categoría");
+      showToast('Error guardando la categoría', 'error');
     } finally {
         setLoading(false);
     }
@@ -87,7 +89,7 @@ export default function AddTransaction() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.accountId) {
-      alert("Selecciona una cuenta");
+      showToast('Selecciona una cuenta', 'warning');
       return;
     }
 
@@ -98,7 +100,7 @@ export default function AddTransaction() {
       // --- BALANCE VALIDATION FOR DEBIT/CASH ACCOUNTS ---
       if (formData.type === 'expense' && selectedAccount && (selectedAccount.type === 'debit' || selectedAccount.type === 'cash')) {
           if (amount > selectedAccount.balance) {
-              alert(`¡Saldo insuficiente! Esta cuenta solo tiene $${selectedAccount.balance} disponible.`);
+              showToast(`¡Saldo insuficiente! Esta cuenta solo tiene $${selectedAccount.balance} disponible.`, 'warning');
               setLoading(false);
               return;
           }
@@ -142,10 +144,10 @@ export default function AddTransaction() {
       setFormData(prev => ({ ...prev, amount: '', description: '', isMSI: false, isShared: false, borrowerName: '' }));
       setDisplayAmount('');
       refreshData();
-      alert("Transacción registrada con éxito");
+      showToast('Transacción registrada con éxito', 'success');
     } catch (err) {
       console.error(err);
-      alert("Error al guardar la transacción");
+      showToast('Error al guardar la transacción', 'error');
     } finally {
       setLoading(false);
     }

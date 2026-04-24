@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
+import { useToast } from '../context/ToastContext';
 import { addSavingGoal, addFundsToSaving, withdrawFromSaving, deleteSavingGoal } from '../services/db';
 import { differenceInWeeks, differenceInMonths, isValid, parseISO } from 'date-fns';
 import { PiggyBank, Target, CalendarDays, Plus, PlusCircle, Wallet, ArrowRight, Trash2, Infinity as InfinityIcon, HelpCircle } from 'lucide-react';
@@ -7,6 +8,7 @@ import { startTour } from '../utils/tourConfig';
 
 export default function Savings() {
   const { savings, accounts, refreshData } = useFinance();
+  const showToast = useToast();
   const [loading, setLoading] = useState(false);
   const [fundingLoading, setFundingLoading] = useState(false);
   const [isFreeGoal, setIsFreeGoal] = useState(false);
@@ -85,7 +87,7 @@ export default function Savings() {
       refreshData();
     } catch (err) {
       console.error(err);
-      alert('Error al crear la meta de ahorro');
+      showToast('Error al crear la meta de ahorro', 'error');
     } finally {
       setLoading(false);
     }
@@ -102,7 +104,7 @@ export default function Savings() {
           refreshData();
       } catch (err) {
           console.error(err);
-          alert("Error al eliminar la meta");
+          showToast('Error al eliminar la meta', 'error');
       }
   };
 
@@ -113,7 +115,7 @@ export default function Savings() {
     // Verificar si hay fondos suficientes
     const account = accounts.find(a => a.id === fundData.accountId);
     if (!account || account.balance < Number(fundData.amount)) {
-      alert("No tienes suficientes fondos en esta cuenta para realizar esta aportación.");
+      showToast('No tienes suficientes fondos en esta cuenta para realizar esta aportación.', 'warning');
       return;
     }
 
@@ -126,7 +128,7 @@ export default function Savings() {
       refreshData();
     } catch (err) {
       console.error(err);
-      alert('Error al transferir fondos al ahorro');
+      showToast('Error al transferir fondos al ahorro', 'error');
     } finally {
       setFundingLoading(false);
     }
@@ -139,7 +141,7 @@ export default function Savings() {
     // Verificar si hay fondos suficientes en el ahorro
     const saving = savings.find(s => s.id === goalId);
     if (!saving || saving.savedAmount < Number(withdrawData.amount)) {
-      alert("No tienes suficientes fondos en este ahorro para realizar el retiro.");
+      showToast('No tienes suficientes fondos en este ahorro para realizar el retiro.', 'warning');
       return;
     }
 
@@ -152,7 +154,7 @@ export default function Savings() {
       refreshData();
     } catch (err) {
       console.error(err);
-      alert('Error al retirar fondos del ahorro');
+      showToast('Error al retirar fondos del ahorro', 'error');
     } finally {
       setFundingLoading(false);
     }
@@ -210,7 +212,7 @@ export default function Savings() {
               refreshData();
           } catch (err) {
               console.error(err);
-              alert("Error al crear el Fondo de Emergencia");
+              showToast('Error al crear el Fondo de Emergencia', 'error');
           } finally {
               setLoading(false);
           }

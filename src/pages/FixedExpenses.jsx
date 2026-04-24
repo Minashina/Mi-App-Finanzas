@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '../context/FinanceContext';
+import { useToast } from '../context/ToastContext';
 import { addFixedExpense, deleteFixedExpense, addTransaction } from '../services/db';
 import { CalendarClock, PlusCircle, Trash2, Home, Wifi, Zap, Droplets, CheckCircle2, ArrowRight, HelpCircle } from 'lucide-react';
 import { isSameMonth } from 'date-fns';
@@ -7,6 +8,7 @@ import { startTour } from '../utils/tourConfig';
 
 export default function FixedExpenses() {
   const { fixedExpenses, accounts, transactions, refreshData } = useFinance();
+  const showToast = useToast();
   const [loading, setLoading] = useState(false);
   const [payLoadingId, setPayLoadingId] = useState(null);
   
@@ -66,7 +68,7 @@ export default function FixedExpenses() {
       refreshData();
     } catch (err) {
       console.error(err);
-      alert('Error al guardar el gasto fijo');
+      showToast('Error al guardar el gasto fijo', 'error');
     } finally {
       setLoading(false);
     }
@@ -84,7 +86,7 @@ export default function FixedExpenses() {
   const handlePayExpense = async (e, exp) => {
       e.preventDefault();
       if (!payData.accountId) {
-          alert("Selecciona una cuenta para pagar");
+          showToast('Selecciona una cuenta para pagar', 'warning');
           return;
       }
       
@@ -92,7 +94,7 @@ export default function FixedExpenses() {
       try {
           const payAmount = Number(payData.amount);
           if (payAmount <= 0) {
-              alert("El monto debe ser mayor a 0");
+              showToast('El monto debe ser mayor a 0', 'warning');
               setPayLoadingId(null);
               return;
           }
@@ -100,7 +102,7 @@ export default function FixedExpenses() {
           const selectedAccount = accounts.find(a => a.id === payData.accountId);
           if (selectedAccount && (selectedAccount.type === 'debit' || selectedAccount.type === 'cash')) {
               if (payAmount > selectedAccount.balance) {
-                  alert(`¡Saldo insuficiente! Esta cuenta solo tiene $${selectedAccount.balance} disponible.`);
+                  showToast(`¡Saldo insuficiente! Esta cuenta solo tiene $${selectedAccount.balance} disponible.`, 'warning');
                   setPayLoadingId(null);
                   return;
               }
@@ -125,7 +127,7 @@ export default function FixedExpenses() {
           refreshData();
       } catch (err) {
           console.error(err);
-          alert("Error al procesar el pago");
+          showToast('Error al procesar el pago', 'error');
       } finally {
           setPayLoadingId(null);
       }
