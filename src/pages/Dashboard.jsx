@@ -163,15 +163,6 @@ export default function Dashboard() {
 
   const creditUsage = creditCards.map(cc => {
     const ccTxs = transactions.filter(tx => tx.accountId === cc.id);
-    const regularExpenses = ccTxs.filter(tx => tx.type === 'expense' && !tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
-    // Cuotas MSI ya facturadas hasta hoy (no futuras). Comparar contra pagos reales registrados
-    // da el saldo real en la tarjeta, igual que un estado de cuenta bancario.
-    const billedMSI = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateBilledMSISoFar(tx), 0);
-    const ccPayments = ccTxs.filter(tx => tx.type === 'income').reduce((acc, tx) => acc + tx.amount, 0);
-    const actualDebt = Math.max(0, regularExpenses + billedMSI - ccPayments);
-    totalCreditDebt += actualDebt;
-    const availableCredit = Math.max(0, cc.creditLimit - actualDebt);
-    const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
 
     // Fechas de corte (safe contra overflow de meses cortos)
     let lastClosedCutoff;
@@ -237,6 +228,15 @@ export default function Dashboard() {
 
     const grossCurrentStatement = pastBalance + currentRegularTotal + currentMSITotal;
     const currentStatementDebt = Math.max(0, grossCurrentStatement - recentPayments);
+
+    // Deuda Total Activa = lo que debes pagar este corte + cuotas MSI que llegarán en meses futuros.
+    // msiTotalRemaining incluye el mes actual. Al restarle currentMSITotal obtenemos solo cuotas futuras post-corte.
+    const msiTotalRemaining = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateRemainingMSIDebt(tx), 0);
+    const futureRemainingMSI = Math.max(0, msiTotalRemaining - currentMSITotal);
+    const actualDebt = Math.max(0, currentStatementDebt + futureRemainingMSI);
+    totalCreditDebt += actualDebt;
+    const availableCredit = Math.max(0, cc.creditLimit - actualDebt);
+    const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
 
     const breakdown = { pastBalance, currentCycleRegularTxs, currentRegularTotal, currentCycleMSITxs, currentMSITotal, grossCurrentStatement, recentPayments };
 
