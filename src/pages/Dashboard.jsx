@@ -229,11 +229,18 @@ export default function Dashboard() {
     const grossCurrentStatement = pastBalance + currentRegularTotal + currentMSITotal;
     const currentStatementDebt = Math.max(0, grossCurrentStatement - recentPayments);
 
-    // Deuda Total Activa = lo que debes pagar este corte + cuotas MSI que llegarán en meses futuros.
-    // msiTotalRemaining incluye el mes actual. Al restarle currentMSITotal obtenemos solo cuotas futuras post-corte.
-    const msiTotalRemaining = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateRemainingMSIDebt(tx), 0);
-    const futureRemainingMSI = Math.max(0, msiTotalRemaining - currentMSITotal);
-    const actualDebt = Math.max(0, currentStatementDebt + futureRemainingMSI);
+    // MSI restante relativo al corte cerrado (no a hoy) para que futureRemainingMSI
+    // esté en sincronía con currentMSITotal aunque haya cambiado el mes calendario.
+    const msiAtCutoff = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateRemainingMSIDebt(tx, lastClosedCutoff), 0);
+    const futureRemainingMSI = Math.max(0, msiAtCutoff - currentMSITotal);
+
+    // Gastos regulares del ciclo abierto (posteriores al corte cerrado, aún no en ningún estado de cuenta).
+    // Se suman a Deuda Total Activa para que los gastos de hoy aparezcan de inmediato.
+    const openCycleRegular = ccTxs.filter(tx => {
+        return tx.type === 'expense' && !tx.isMSI && toJSDate(tx.date) > lastClosedCutoff;
+    }).reduce((acc, tx) => acc + tx.amount, 0);
+
+    const actualDebt = Math.max(0, currentStatementDebt + futureRemainingMSI + openCycleRegular);
     totalCreditDebt += actualDebt;
     const availableCredit = Math.max(0, cc.creditLimit - actualDebt);
     const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
