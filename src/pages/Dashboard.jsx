@@ -19,6 +19,13 @@ const renderBold = (text) => {
     return parts.map((part, i) => i % 2 === 1 ? <strong key={i}>{part}</strong> : part);
 };
 
+// Crea una fecha de corte sin overflow: si el mes tiene menos días que `day`, usa el último día del mes.
+// Ejemplo: safeCutoffDate(2026, 1, 30) → 28 feb 2026, no 2 mar 2026.
+const safeCutoffDate = (year, month, day) => {
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    return new Date(year, month, Math.min(day, lastDay), 23, 59, 59, 999);
+};
+
 // Colors for Accounts
 const ACCOUNT_COLORS = {
     'default': 'bg-surface border-white/5',
@@ -210,19 +217,35 @@ export default function Dashboard() {
     const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
 
     // --- CÁLCULO DE ESTADO DE CUENTA (ÚLTIMO CORTE CERRADO) ---
-    let lastClosedCutoff = new Date(currentMonthDate);
+    let lastClosedCutoff;
     if (cc.cutoffDay) {
         const cutoff = Number(cc.cutoffDay);
-        lastClosedCutoff = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), cutoff, 23, 59, 59, 999);
+        const year = currentMonthDate.getFullYear();
+        const month = currentMonthDate.getMonth();
         if (currentMonthDate.getDate() < cutoff) {
-            lastClosedCutoff.setMonth(lastClosedCutoff.getMonth() - 1);
+            // Aún no llegamos al corte de este mes → el último corte fue el mes anterior
+            const prevMonth = month === 0 ? 11 : month - 1;
+            const prevYear = month === 0 ? year - 1 : year;
+            lastClosedCutoff = safeCutoffDate(prevYear, prevMonth, cutoff);
+        } else {
+            lastClosedCutoff = safeCutoffDate(year, month, cutoff);
         }
     } else {
         lastClosedCutoff = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 0, 23, 59, 59, 999);
     }
-    
-    let prevClosedCutoff = new Date(lastClosedCutoff);
-    prevClosedCutoff.setMonth(prevClosedCutoff.getMonth() - 1);
+
+    // Corte anterior: retroceder un mes más desde lastClosedCutoff, cappeando el día
+    let prevClosedCutoff;
+    if (cc.cutoffDay) {
+        const cutoff = Number(cc.cutoffDay);
+        const lcMonth = lastClosedCutoff.getMonth();
+        const lcYear = lastClosedCutoff.getFullYear();
+        const prevMonth = lcMonth === 0 ? 11 : lcMonth - 1;
+        const prevYear = lcMonth === 0 ? lcYear - 1 : lcYear;
+        prevClosedCutoff = safeCutoffDate(prevYear, prevMonth, cutoff);
+    } else {
+        prevClosedCutoff = new Date(lastClosedCutoff.getFullYear(), lastClosedCutoff.getMonth(), 0, 23, 59, 59, 999);
+    }
 
     // --- LÓGICA DE ESTADO DE CUENTA (AISLAMIENTO TEMPORAL) ---
     // 1. Histórico (Anteriores al corte)
