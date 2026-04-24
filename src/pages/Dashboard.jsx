@@ -209,7 +209,7 @@ export default function Dashboard() {
 
     const pastPayments = ccTxs.filter(tx => {
         if (tx.type !== 'income') return false;
-        return toJSDate(tx.date) <= lastClosedCutoff;
+        return toJSDate(tx.date) <= prevClosedCutoff;
     }).reduce((sum, tx) => sum + tx.amount, 0);
 
     const pastBalance = Math.max(0, pastRegularTotal - pastPayments);
@@ -229,7 +229,7 @@ export default function Dashboard() {
 
     const recentPayments = ccTxs.filter(tx => {
         if (tx.type !== 'income') return false;
-        return toJSDate(tx.date) > lastClosedCutoff;
+        return toJSDate(tx.date) > prevClosedCutoff;
     }).reduce((sum, tx) => sum + tx.amount, 0);
 
     const grossCurrentStatement = pastBalance + currentRegularTotal + currentMSITotal;
