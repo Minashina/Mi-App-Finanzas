@@ -164,10 +164,12 @@ export default function Dashboard() {
   const creditUsage = creditCards.map(cc => {
     const ccTxs = transactions.filter(tx => tx.accountId === cc.id);
     const regularExpenses = ccTxs.filter(tx => tx.type === 'expense' && !tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
-    const msiRemaining = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + calculateRemainingMSIDebt(tx), 0);
+    const totalMSIPurchases = ccTxs.filter(tx => tx.isMSI).reduce((acc, tx) => acc + tx.amount, 0);
     const ccPayments = ccTxs.filter(tx => tx.type === 'income').reduce((acc, tx) => acc + tx.amount, 0);
-    const unpaidRegularOnly = Math.max(0, regularExpenses - ccPayments);
-    const actualDebt = unpaidRegularOnly + msiRemaining;
+    // Total owed = all charges (regular + full MSI amounts) minus all payments recorded.
+    // Using totalMSIPurchases (not msiRemaining) so completed-but-unpaid MSI installments
+    // aren't silently dropped from the debt once their billing period ends.
+    const actualDebt = Math.max(0, regularExpenses + totalMSIPurchases - ccPayments);
     totalCreditDebt += actualDebt;
     const availableCredit = Math.max(0, cc.creditLimit - actualDebt);
     const usagePercent = cc.creditLimit > 0 ? (actualDebt / cc.creditLimit) * 100 : 0;
