@@ -98,14 +98,15 @@ export const calculateRemainingMSIDebt = (tx, targetDate = new Date()) => {
   
   // Calculamos los meses de diferencia calendárica entre hoy y el fin del adeudo
   let monthsLeft = differenceInCalendarMonths(endDate, today);
-  
+
   // Prevensión: en caso de que meses restantes sea mayor que los originales (por error de fecha de entrada etc.)
   if (monthsLeft > tx.msiData.totalMonths) {
       monthsLeft = tx.msiData.totalMonths;
   }
-  
-  // Si mesesIzq es negativo, devuelve 0 (ya validado por el if() de arriba, pero por seguridad)
-  if (monthsLeft <= 0) return 0;
+
+  // Si estamos en el último mes del MSI, differenceInCalendarMonths devuelve 0 aunque aún no llega endDate.
+  // Garantizamos al menos 1 cuota para que el mes final no desaparezca del cálculo.
+  if (monthsLeft <= 0) monthsLeft = 1;
 
   // El adeudo siempre es el de los meses restantes por la mensualidad globalmente hablando
   return monthsLeft * tx.msiData.monthlyAmount;
