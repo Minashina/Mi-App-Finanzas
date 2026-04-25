@@ -1,4 +1,4 @@
-import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy, getDoc, increment, writeBatch, arrayUnion } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy, getDoc, increment, writeBatch, arrayUnion, runTransaction } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { toJSDate } from '../utils/format';
 
@@ -289,49 +289,139 @@ export const payCreditCard = async (creditAccountId, debitAccountId, amount, mon
 
 export const processSavingsYields = async (savings) => {
     if (!savings || savings.length === 0) return null;
-    let hasUpdates = false;
+    let globalUpdates = false;
+
+    // --- AUTO-HEALING: Limpiar posibles duplicados generados por la concurrencia anterior ---
+    const cleanupBatch = writeBatch(db);
+    let needsCleanup = false;
+
+    for (let i = 0; i < savings.length; i++) {
+        const s = savings[i];
+        if (!s.yieldHistory || s.yieldHistory.length <= 1) continue;
+
+        const yieldsByDate = {};
+        const newHistory = [];
+        let excessiveAmount = 0;
+
+        s.yieldHistory.forEach(y => {
+            if (!y.date) {
+               newHistory.push(y); return;
+            }
+            const yDate = toJSDate(y.date);
+            const tzOffset = yDate.getTimezoneOffset() * 60000;
+            const localISOTime = (new Date(yDate - tzOffset)).toISOString().slice(0, -1).split('T')[0];
+
+            if (!yieldsByDate[localISOTime]) {
+                yieldsByDate[localISOTime] = [y];
+                newHistory.push(y);
+            } else {
+                const isExactDup = yieldsByDate[localISOTime].some(existing => existing.amount === y.amount);
+                if (isExactDup) {
+                    excessiveAmount += y.amount;
+                } else {
+                    yieldsByDate[localISOTime].push(y);
+                    newHistory.push(y);
+                }
+            }
+        });
+
+        if (excessiveAmount > 0) {
+            const docRef = doc(db, SAVINGS_COL, s.id);
+            // Usamos cálculos matemáticos absolutos para que sea idempotente
+            const correctedAmount = s.savedAmount - excessiveAmount;
+            cleanupBatch.update(docRef, {
+                savedAmount: correctedAmount,
+                yieldHistory: newHistory
+            });
+            
+            savings[i] = {
+                ...s,
+                savedAmount: correctedAmount,
+                yieldHistory: newHistory
+            };
+            needsCleanup = true;
+            globalUpdates = true;
+            console.log("Reparación automática: se restó de saldo extra $", excessiveAmount);
+        }
+    }
+
+    if (needsCleanup) {
+        await cleanupBatch.commit();
+    }
+    // --------------------------------------------------------------------------------------
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     const today = new Date(todayStr); // Hoy a la medianoche
 
-    const batch = writeBatch(db);
-    const updatedSavings = [...savings];
-
-    savings.forEach((s, index) => {
-        if (!s.annualYield || s.annualYield <= 0 || s.savedAmount <= 0) return;
-
+    // Verificar localmente primero para evitar transacciones innecesarias
+    const savingsToUpdate = savings.filter(s => {
+        if (!s.annualYield || s.annualYield <= 0 || s.savedAmount <= 0) return false;
         const lastUpdate = s.lastYieldDate ? toJSDate(s.lastYieldDate) : (s.createdAt ? toJSDate(s.createdAt) : today);
         const lastUpdateStr = lastUpdate.toISOString().split('T')[0];
         const lastUpdateAtMidnight = new Date(lastUpdateStr);
-
         const daysPassed = Math.floor((today - lastUpdateAtMidnight) / (1000 * 60 * 60 * 24));
-
-        if (daysPassed >= 1) {
-            const dailyYield = (s.savedAmount * (s.annualYield / 100)) / 365;
-            const yieldGenerated = dailyYield * daysPassed;
-
-            const yieldEntry = { date: now, amount: yieldGenerated, days: daysPassed };
-
-            const docRef = doc(db, SAVINGS_COL, s.id);
-            batch.update(docRef, {
-                savedAmount: increment(yieldGenerated),
-                lastYieldDate: now,
-                yieldHistory: arrayUnion(yieldEntry)
-            });
-
-            hasUpdates = true;
-            updatedSavings[index] = {
-                ...s,
-                savedAmount: s.savedAmount + yieldGenerated,
-                lastYieldDate: now,
-                yieldHistory: [...(s.yieldHistory || []), yieldEntry]
-            };
-        }
+        return daysPassed >= 1;
     });
 
-    if (hasUpdates) {
-        await batch.commit();
-        return updatedSavings;
+    if (savingsToUpdate.length === 0) return null;
+
+    const updatedLocally = [...savings];
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const readDocs = [];
+            // Fase de lectura
+            for (const s of savingsToUpdate) {
+                const docRef = doc(db, SAVINGS_COL, s.id);
+                const snap = await transaction.get(docRef);
+                readDocs.push({ docRef, snap, localSaving: s });
+            }
+
+            // Fase de chequeo y escritura
+            for (const item of readDocs) {
+                const { docRef, snap, localSaving } = item;
+                if (!snap.exists()) continue;
+                
+                const data = snap.data();
+                const sLastYield = data.lastYieldDate ? toJSDate(data.lastYieldDate) : (data.createdAt ? toJSDate(data.createdAt) : today);
+                const lastUpdateStr = sLastYield.toISOString().split('T')[0];
+                const lastUpdateAtMidnight = new Date(lastUpdateStr);
+                const daysPassed = Math.floor((today - lastUpdateAtMidnight) / (1000 * 60 * 60 * 24));
+
+                // Asegurar que dentro de la transacción los días siguen siendo > 0
+                if (daysPassed >= 1) {
+                    const savedAmt = data.savedAmount || 0;
+                    const dailyYield = (savedAmt * (localSaving.annualYield / 100)) / 365;
+                    const yieldGenerated = dailyYield * daysPassed;
+
+                    const yieldEntry = { date: now, amount: yieldGenerated, days: daysPassed };
+
+                    // Usar actualización calculada exacta para evitar bugs de concurrencia y reemplazos destructivos
+                    transaction.update(docRef, {
+                        savedAmount: savedAmt + yieldGenerated,
+                        lastYieldDate: now,
+                        yieldHistory: arrayUnion(yieldEntry)
+                    });
+
+                    // Modificar la copia en memoria para refrescar el Dashboard instantáneamente
+                    const index = updatedLocally.findIndex(x => x.id === localSaving.id);
+                    if (index !== -1) {
+                        updatedLocally[index] = {
+                            ...updatedLocally[index],
+                            savedAmount: savedAmt + yieldGenerated,
+                            lastYieldDate: now,
+                            yieldHistory: [...(data.yieldHistory || []), yieldEntry]
+                        };
+                        globalUpdates = true;
+                    }
+                }
+            }
+        });
+
+        if (globalUpdates) return updatedLocally;
+
+    } catch (e) {
+        console.error("Error al procesar rendimientos diarios concurrentes:", e);
     }
 
     return null;
