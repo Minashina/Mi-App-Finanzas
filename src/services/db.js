@@ -1,4 +1,4 @@
-import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy, getDoc, increment, writeBatch } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy, getDoc, increment, writeBatch, arrayUnion } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { toJSDate } from '../utils/format';
 
@@ -173,7 +173,13 @@ export const getCustomCategories = async () => {
 
 export const addSavingGoal = async (savingData) => {
   const uid = getExpectedUid();
-  const payload = { ...savingData, uid, createdAt: new Date() };
+  const payload = { 
+    ...savingData, 
+    uid, 
+    createdAt: new Date(),
+    lastYieldDate: new Date(),
+    yieldHistory: []
+  };
   const docRef = await addDoc(collection(db, SAVINGS_COL), payload);
   return { id: docRef.id, ...payload };
 };
@@ -276,3 +282,58 @@ export const payCreditCard = async (creditAccountId, debitAccountId, amount, mon
 
     await batch.commit();
 };
+
+// ==========================================
+// YIELDS ACCRUAL (RENDIMIENTOS DIARIOS)
+// ==========================================
+
+export const processSavingsYields = async (savings) => {
+    if (!savings || savings.length === 0) return null;
+    let hasUpdates = false;
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const today = new Date(todayStr); // Hoy a la medianoche
+
+    const batch = writeBatch(db);
+    const updatedSavings = [...savings];
+
+    savings.forEach((s, index) => {
+        if (!s.annualYield || s.annualYield <= 0 || s.savedAmount <= 0) return;
+
+        const lastUpdate = s.lastYieldDate ? toJSDate(s.lastYieldDate) : (s.createdAt ? toJSDate(s.createdAt) : today);
+        const lastUpdateStr = lastUpdate.toISOString().split('T')[0];
+        const lastUpdateAtMidnight = new Date(lastUpdateStr);
+
+        const daysPassed = Math.floor((today - lastUpdateAtMidnight) / (1000 * 60 * 60 * 24));
+
+        if (daysPassed >= 1) {
+            const dailyYield = (s.savedAmount * (s.annualYield / 100)) / 365;
+            const yieldGenerated = dailyYield * daysPassed;
+
+            const yieldEntry = { date: now, amount: yieldGenerated, days: daysPassed };
+
+            const docRef = doc(db, SAVINGS_COL, s.id);
+            batch.update(docRef, {
+                savedAmount: increment(yieldGenerated),
+                lastYieldDate: now,
+                yieldHistory: arrayUnion(yieldEntry)
+            });
+
+            hasUpdates = true;
+            updatedSavings[index] = {
+                ...s,
+                savedAmount: s.savedAmount + yieldGenerated,
+                lastYieldDate: now,
+                yieldHistory: [...(s.yieldHistory || []), yieldEntry]
+            };
+        }
+    });
+
+    if (hasUpdates) {
+        await batch.commit();
+        return updatedSavings;
+    }
+
+    return null;
+};
+

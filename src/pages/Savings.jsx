@@ -177,6 +177,39 @@ export default function Savings() {
 
   const totalSavedAll = regularSavings.reduce((acc, s) => acc + s.savedAmount, 0);
 
+  const today = new Date();
+  const yieldsByDay = {};
+  savings.forEach(s => {
+      if (s.yieldHistory) {
+          s.yieldHistory.forEach(y => {
+              const d = toJSDate(y.date);
+              const tzOffset = d.getTimezoneOffset() * 60000;
+              const localISOTime = (new Date(d - tzOffset)).toISOString().slice(0, -1).split('T')[0];
+              yieldsByDay[localISOTime] = (yieldsByDay[localISOTime] || 0) + y.amount;
+          });
+      }
+  });
+
+  const last3Days = [];
+  for (let i = 0; i < 3; i++) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      const tzOffset = d.getTimezoneOffset() * 60000;
+      const dateStr = (new Date(d - tzOffset)).toISOString().slice(0, -1).split('T')[0];
+      
+      let label = "Hoy";
+      if (i === 1) label = "Ayer";
+      if (i === 2) {
+          label = d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' });
+          label = label.charAt(0).toUpperCase() + label.slice(1);
+      }
+      
+      last3Days.push({
+          label,
+          amount: yieldsByDay[dateStr] || 0
+      });
+  }
+
   const handleCreateEmergencyFund = async () => {
       if (window.confirm("¿Crear tu Fondo de Emergencia? Este fondo es independiente de tus otros ahorros.")) {
           setLoading(true);
@@ -219,14 +252,33 @@ export default function Savings() {
                 <HelpCircle size={20} />
             </button>
           </div>
-          <div className="bg-surface border border-white/10 px-6 py-3 rounded-2xl flex items-center gap-4 shadow-lg w-full md:w-auto">
-             <div className="flex-1">
-                <p className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">Total Ahorrado</p>
-                <p className="text-2xl md:text-3xl font-black text-white">${totalSavedAll.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-             </div>
-             <div className="bg-primary/20 p-3 rounded-xl">
-                 <Target className="text-primary-light" size={24} />
-             </div>
+          
+          <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto mt-4 md:mt-0">
+              <div className="bg-surface border border-white/10 px-6 py-3 rounded-2xl flex items-center gap-4 shadow-lg w-full md:w-auto">
+                 <div className="flex-1">
+                    <p className="text-xs text-text-muted uppercase tracking-wider font-bold mb-1">Total Ahorrado</p>
+                    <p className="text-2xl md:text-3xl font-black text-white">${totalSavedAll.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                 </div>
+                 <div className="bg-primary/20 p-3 rounded-xl hidden xl:block">
+                     <Target className="text-primary-light" size={24} />
+                 </div>
+              </div>
+              
+              <div className="bg-surface border border-success/20 px-6 py-3 rounded-2xl flex items-center shadow-lg w-full md:w-auto">
+                  <div className="flex-1">
+                      <p className="text-xs text-success uppercase tracking-wider font-bold mb-1">Rendimientos Recientes</p>
+                      <div className="flex gap-4">
+                          {last3Days.map((yd) => (
+                              <div key={yd.label} className="flex-1 md:flex-none">
+                                  <p className="text-[10px] text-text-muted uppercase font-bold">{yd.label}</p>
+                                  <p className="text-sm font-black text-success">
+                                      +${yd.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </p>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+              </div>
           </div>
       </div>
 

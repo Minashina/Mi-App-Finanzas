@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getAccounts, getTransactions, getFixedExpenses, getSavings } from '../services/db';
+import { getAccounts, getTransactions, getFixedExpenses, getSavings, processSavingsYields } from '../services/db';
 
 const FinanceContext = createContext();
 
@@ -16,16 +16,20 @@ export const FinanceProvider = ({ children }) => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [fetchedAccounts, fetchedTransactions, fetchedFixed, fetchedSavings] = await Promise.all([
+      const [fetchedAccounts, fetchedTransactions, fetchedFixed, initialSavings] = await Promise.all([
         getAccounts(),
         getTransactions(),
         getFixedExpenses(),
         getSavings()
       ]);
+
+      const updatedSavings = await processSavingsYields(initialSavings);
+      const finalSavings = updatedSavings || initialSavings;
+
       setAccounts(fetchedAccounts);
       setTransactions(fetchedTransactions);
       setFixedExpenses(fetchedFixed);
-      setSavings(fetchedSavings);
+      setSavings(finalSavings);
       setError(null);
     } catch (err) {
       console.error("Error fetching data:", err);
