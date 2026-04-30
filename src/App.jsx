@@ -14,7 +14,8 @@ import History from './pages/History';
 import FixedExpenses from './pages/FixedExpenses';
 import Savings from './pages/Savings';
 import Statement from './pages/Statement';
-import { List, CalendarClock as ClockIcon, PiggyBank, FileText } from 'lucide-react'; // Iconos extra
+import Trends from './pages/Trends';
+import { List, CalendarClock as ClockIcon, PiggyBank, FileText, BarChart2 } from 'lucide-react'; // Iconos extra
 
 const SidebarItem = ({ to, icon: Icon, label, onClick }) => {
   const location = useLocation();
@@ -125,6 +126,7 @@ export default function App() {
           <SidebarItem to="/savings" icon={PiggyBank} label="Ahorros" onClick={() => setIsSidebarOpen(false)} />
           <SidebarItem to="/history" icon={List} label="Historial" onClick={() => setIsSidebarOpen(false)} />
           <SidebarItem to="/msi-debt" icon={CalendarSync} label="Deuda Futura" onClick={() => setIsSidebarOpen(false)} />
+          <SidebarItem to="/trends" icon={BarChart2} label="Comparativa" onClick={() => setIsSidebarOpen(false)} />
           <SidebarItem to="/statement" icon={FileText} label="Estado de Cuenta" onClick={() => setIsSidebarOpen(false)} />
         </nav>
         
@@ -153,6 +155,7 @@ export default function App() {
           <Route path="/savings" element={<Savings />} />
           <Route path="/history" element={<History />} />
           <Route path="/msi-debt" element={<MSIDebt />} />
+          <Route path="/trends" element={<Trends />} />
           <Route path="/statement" element={<Statement />} />
         </Routes>
         
