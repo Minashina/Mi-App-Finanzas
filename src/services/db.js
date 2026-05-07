@@ -245,6 +245,19 @@ export const deleteSavingGoal = async (id) => {
     await deleteDoc(docRef);
 };
 
+export const updateSavingGoal = async (id, updates) => {
+    const docRef = doc(db, SAVINGS_COL, id);
+    await updateDoc(docRef, updates);
+};
+
+export const transferBetweenSavings = async (fromId, toId, amount) => {
+    getExpectedUid();
+    const batch = writeBatch(db);
+    batch.update(doc(db, SAVINGS_COL, fromId), { savedAmount: increment(-amount) });
+    batch.update(doc(db, SAVINGS_COL, toId), { savedAmount: increment(amount) });
+    await batch.commit();
+};
+
 // ==========================================
 // MSI PAYMENTS
 // ==========================================
