@@ -4,7 +4,7 @@ import { useToast } from '../context/ToastContext';
 import { addSavingGoal, addFundsToSaving, withdrawFromSaving, deleteSavingGoal, updateSavingGoal, transferBetweenSavings } from '../services/db';
 import { formatAmountInput, toJSDate } from '../utils/format';
 import { differenceInWeeks, differenceInMonths, isValid, parseISO } from 'date-fns';
-import { PiggyBank, Target, CalendarDays, Plus, PlusCircle, Wallet, ArrowRight, Trash2, Infinity as InfinityIcon, HelpCircle, Pencil, ArrowLeftRight } from 'lucide-react';
+import { PiggyBank, Target, CalendarDays, Plus, PlusCircle, Wallet, ArrowRight, Trash2, Infinity as InfinityIcon, HelpCircle, Pencil, ArrowLeftRight, ChevronDown, ChevronUp, TrendingUp, TrendingDown } from 'lucide-react';
 import { startTour } from '../utils/tourConfig';
 
 export default function Savings() {
@@ -41,6 +41,7 @@ export default function Savings() {
   const [displayWithdrawAmount, setDisplayWithdrawAmount] = useState('');
   const [displayEditTargetAmount, setDisplayEditTargetAmount] = useState('');
   const [displayTransferAmount, setDisplayTransferAmount] = useState('');
+  const [expandedHistoryId, setExpandedHistoryId] = useState(null);
 
   const formatNumberInput = formatAmountInput;
 
@@ -176,6 +177,7 @@ export default function Savings() {
     if (!transferData.toId || !transferData.amount) return;
 
     const fromGoal = savings.find(s => s.id === fromGoalId);
+    const toGoal = savings.find(s => s.id === transferData.toId);
     if (!fromGoal || fromGoal.savedAmount < Number(transferData.amount)) {
       showToast('No tienes suficientes fondos en este ahorro para la transferencia.', 'warning');
       return;
@@ -183,7 +185,7 @@ export default function Savings() {
 
     setFundingLoading(true);
     try {
-      await transferBetweenSavings(fromGoalId, transferData.toId, Number(transferData.amount));
+      await transferBetweenSavings(fromGoalId, transferData.toId, Number(transferData.amount), fromGoal.name, toGoal?.name || '');
       setTransferringGoalId(null);
       setTransferData({ toId: '', amount: '' });
       setDisplayTransferAmount('');
@@ -878,6 +880,29 @@ export default function Savings() {
                                 )}
                             </div>
 
+                            {/* Historial de movimientos */}
+                            {goal.history?.length > 0 && (
+                                <div className="mt-4 border-t border-white/5 pt-4">
+                                    <button
+                                        onClick={() => setExpandedHistoryId(expandedHistoryId === goal.id ? null : goal.id)}
+                                        className="flex items-center gap-2 text-xs font-bold text-text-muted hover:text-white transition-colors uppercase tracking-wider"
+                                    >
+                                        {expandedHistoryId === goal.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                        Movimientos ({goal.history.length})
+                                    </button>
+                                    {expandedHistoryId === goal.id && (
+                                        <div className="mt-3 space-y-1 max-h-60 overflow-y-auto pr-1">
+                                            {[...goal.history]
+                                                .sort((a, b) => toJSDate(b.date) - toJSDate(a.date))
+                                                .map((entry, i) => (
+                                                    <HistoryEntry key={i} entry={entry} />
+                                                ))
+                                            }
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                         </div>
                     )
                 })
@@ -885,6 +910,34 @@ export default function Savings() {
         </div>
 
       </div>
+    </div>
+  );
+}
+
+const TYPE_CONFIG = {
+  deposit:      { label: 'Depósito',      color: 'text-success',  sign: '+', Icon: TrendingUp },
+  withdrawal:   { label: 'Retiro',        color: 'text-danger',   sign: '-', Icon: TrendingDown },
+  transfer_in:  { label: 'Transferencia', color: 'text-success',  sign: '+', Icon: ArrowLeftRight },
+  transfer_out: { label: 'Transferencia', color: 'text-text-muted', sign: '-', Icon: ArrowLeftRight },
+};
+
+function HistoryEntry({ entry }) {
+  const { label, color, sign, Icon } = TYPE_CONFIG[entry.type] || TYPE_CONFIG.deposit;
+  const d = toJSDate(entry.date);
+  const dateStr = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  return (
+    <div className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-white/5 transition-colors">
+      <div className="flex items-center gap-2 min-w-0">
+        <Icon size={13} className={color} />
+        <span className="text-xs text-text-muted">{dateStr}</span>
+        <span className="text-xs text-white/50 truncate">
+          {label}{entry.note ? ` · ${entry.note}` : ''}
+        </span>
+      </div>
+      <span className={`text-xs font-bold tabular-nums ml-3 shrink-0 ${color}`}>
+        {sign}${Number(entry.amount).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </span>
     </div>
   );
 }

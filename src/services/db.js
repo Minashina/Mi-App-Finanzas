@@ -197,10 +197,14 @@ export const getSavings = async () => {
 export const addFundsToSaving = async (savingId, accountId, amount) => {
     getExpectedUid();
 
+    const now = new Date();
     const batch = writeBatch(db);
 
     batch.update(doc(db, ACCOUNTS_COL, accountId), { balance: increment(-amount) });
-    batch.update(doc(db, SAVINGS_COL, savingId), { savedAmount: increment(amount) });
+    batch.update(doc(db, SAVINGS_COL, savingId), {
+        savedAmount: increment(amount),
+        history: arrayUnion({ date: now, amount, type: 'deposit' })
+    });
 
     const newTxRef = doc(collection(db, TRANSACTIONS_COL));
     batch.set(newTxRef, {
@@ -208,7 +212,7 @@ export const addFundsToSaving = async (savingId, accountId, amount) => {
         type: 'expense',
         category: 'Ahorro',
         description: 'Aporte a meta de ahorro',
-        date: new Date(),
+        date: now,
         accountId,
         uid: auth.currentUser.uid,
         isMSI: false
@@ -220,10 +224,14 @@ export const addFundsToSaving = async (savingId, accountId, amount) => {
 export const withdrawFromSaving = async (savingId, accountId, amount) => {
     getExpectedUid();
 
+    const now = new Date();
     const batch = writeBatch(db);
 
     batch.update(doc(db, ACCOUNTS_COL, accountId), { balance: increment(amount) });
-    batch.update(doc(db, SAVINGS_COL, savingId), { savedAmount: increment(-amount) });
+    batch.update(doc(db, SAVINGS_COL, savingId), {
+        savedAmount: increment(-amount),
+        history: arrayUnion({ date: now, amount, type: 'withdrawal' })
+    });
 
     const newTxRef = doc(collection(db, TRANSACTIONS_COL));
     batch.set(newTxRef, {
@@ -231,7 +239,7 @@ export const withdrawFromSaving = async (savingId, accountId, amount) => {
         type: 'income',
         category: 'Ahorro',
         description: 'Retiro de meta de ahorro',
-        date: new Date(),
+        date: now,
         accountId,
         uid: auth.currentUser.uid,
         isMSI: false
@@ -250,11 +258,18 @@ export const updateSavingGoal = async (id, updates) => {
     await updateDoc(docRef, updates);
 };
 
-export const transferBetweenSavings = async (fromId, toId, amount) => {
+export const transferBetweenSavings = async (fromId, toId, amount, fromName, toName) => {
     getExpectedUid();
+    const now = new Date();
     const batch = writeBatch(db);
-    batch.update(doc(db, SAVINGS_COL, fromId), { savedAmount: increment(-amount) });
-    batch.update(doc(db, SAVINGS_COL, toId), { savedAmount: increment(amount) });
+    batch.update(doc(db, SAVINGS_COL, fromId), {
+        savedAmount: increment(-amount),
+        history: arrayUnion({ date: now, amount, type: 'transfer_out', note: toName })
+    });
+    batch.update(doc(db, SAVINGS_COL, toId), {
+        savedAmount: increment(amount),
+        history: arrayUnion({ date: now, amount, type: 'transfer_in', note: fromName })
+    });
     await batch.commit();
 };
 
